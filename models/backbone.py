@@ -14,7 +14,16 @@ from typing import Dict, List
 from util.misc import NestedTensor, is_main_process
 
 from .position_encoding import build_position_encoding
+# Import ViT to be used as backbone
+from .vit_pytorch import ViT
 
+# debug utility
+DEBUG = False
+def log(s, q=False):
+    if DEBUG:
+        print(s)
+        if q == True:
+            quit()
 
 class FrozenBatchNorm2d(torch.nn.Module):
     """
@@ -70,16 +79,21 @@ class BackboneBase(nn.Module):
         self.num_channels = num_channels
 
     def forward(self, tensor_list: NestedTensor):
+        log("BackboneBase forward -> ", q=False)
+#         for i in range(len(tensor_list.tensors)):
+#             log(f"tensor_list[{i}] {tensor_list.tensors[i].shape} -> ", q=False)
         xs = self.body(tensor_list.tensors)
+#         log(f"xs {xs} -> ", q=False)
         out: Dict[str, NestedTensor] = {}
         for name, x in xs.items():
             m = tensor_list.mask
             assert m is not None
             mask = F.interpolate(m[None].float(), size=x.shape[-2:]).to(torch.bool)[0]
             out[name] = NestedTensor(x, mask)
+#         log(f"out {out} -> ", q=False)  
         return out
 
-
+# ViT 5
 class Backbone(BackboneBase):
     """ResNet backbone with frozen BatchNorm."""
     def __init__(self, name: str,
@@ -98,6 +112,7 @@ class Joiner(nn.Sequential):
         super().__init__(backbone, position_embedding)
 
     def forward(self, tensor_list: NestedTensor):
+        log("Joiner forward -> ", q=False) 
         xs = self[0](tensor_list)
         out: List[NestedTensor] = []
         pos = []
@@ -105,14 +120,31 @@ class Joiner(nn.Sequential):
             out.append(x)
             # position encoding
             pos.append(self[1](x).to(x.tensors.dtype))
-
+        log(f"out {out} ,\n pos {pos} -> ", q=True)
         return out, pos
 
-
+# ViT 3
 def build_backbone(args):
+    log(args,False)
+    # add ViT backbone
+    if args.backbone == "ViT":
+        backbone = ViT(
+            image_size = 256,
+            patch_size = 32,
+            num_classes = 1000,
+            channels = backbone.num_channels,
+            dim = 1024,
+            depth = 6,
+            heads = 8,
+            mlp_dim = 2048,
+            dropout = 0.1,
+            emb_dropout = 0.1
+            ).to(device)
+        
     position_embedding = build_position_encoding(args)
     train_backbone = args.lr_backbone > 0
     return_interm_layers = args.masks
+    # ViT 4
     backbone = Backbone(args.backbone, train_backbone, return_interm_layers, args.dilation)
     model = Joiner(backbone, position_embedding)
     model.num_channels = backbone.num_channels

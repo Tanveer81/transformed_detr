@@ -16,6 +16,12 @@ from datasets import build_dataset, get_coco_api_from_dataset
 from engine import evaluate, train_one_epoch
 from models import build_model
 
+DEBUG = True
+def log(s, q=False):
+    if DEBUG:
+        print(s)
+        if q == True:
+            quit()
 
 def get_args_parser():
     parser = argparse.ArgumentParser('Set transformer detector', add_help=False)
@@ -108,8 +114,6 @@ def main(args):
 
     if args.frozen_weights is not None:
         assert args.masks, "Frozen training is meant for segmentation only"
-    print(args)
-
     device = torch.device(args.device)
 
     # fix the seed for reproducibility
@@ -118,7 +122,9 @@ def main(args):
     np.random.seed(seed)
     random.seed(seed)
 
+    # ViT 1 
     model, criterion, postprocessors = build_model(args)
+#     log(f"model{model}", True)
     model.to(device)
 
     model_without_ddp = model
@@ -243,6 +249,7 @@ def main(args):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser('DETR training and evaluation script', parents=[get_args_parser()])
     args = parser.parse_args()
+    print(args)
     if args.output_dir:
         Path(args.output_dir).mkdir(parents=True, exist_ok=True)
     main(args)

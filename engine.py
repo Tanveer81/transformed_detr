@@ -14,6 +14,13 @@ from datasets.coco_eval import CocoEvaluator
 from datasets.panoptic_eval import PanopticEvaluator
 
 
+DEBUG = False
+def log(s, q=False):
+    if DEBUG:
+        print(s)
+        if q == True:
+            quit()
+
 def train_one_epoch(model: torch.nn.Module, criterion: torch.nn.Module,
                     data_loader: Iterable, optimizer: torch.optim.Optimizer,
                     device: torch.device, epoch: int, max_norm: float = 0):
@@ -26,6 +33,12 @@ def train_one_epoch(model: torch.nn.Module, criterion: torch.nn.Module,
     print_freq = 10
 
     for samples, targets in metric_logger.log_every(data_loader, print_freq, header):
+        log("engine train loop", q=False)
+        # nested tensor
+        for i in range(len(samples.tensors)):
+            log(f"samples{i} {samples.tensors[i].shape}", False)
+        log("finish", True)  
+
         samples = samples.to(device)
         targets = [{k: v.to(device) for k, v in t.items()} for t in targets]
 

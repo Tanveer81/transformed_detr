@@ -83,7 +83,7 @@ class Transformer(nn.Module):
         return x
 
 class ViT(nn.Module):
-    def __init__(self, *, image_size, patch_size, num_classes, dim, depth, heads, mlp_dim, channels = 3, dropout = 0., emb_dropout = 0.):
+    def __init__(self, *, image_size, patch_size, num_classes = 1, dim, depth, heads, mlp_dim, channels = 3, dropout = 0., emb_dropout = 0.):
         super().__init__()
         assert image_size % patch_size == 0, 'Image dimensions must be divisible by the patch size.'
         num_patches = (image_size // patch_size) ** 2
@@ -101,27 +101,36 @@ class ViT(nn.Module):
 
         self.to_cls_token = nn.Identity()
 
-        self.mlp_head = nn.Sequential(
-            nn.LayerNorm(dim),
-            nn.Linear(dim, mlp_dim),
-            nn.GELU(),
-            nn.Dropout(dropout),
-            nn.Linear(mlp_dim, num_classes)
-        )
+#         self.mlp_head = nn.Sequential(
+#             nn.LayerNorm(dim),
+#             nn.Linear(dim, mlp_dim),
+#             nn.GELU(),
+#             nn.Dropout(dropout),
+#             nn.Linear(mlp_dim, num_classes)
+#         )
 
     def forward(self, img, mask = None):
+        print(f"image {img.shape}")
         p = self.patch_size
 
         x = rearrange(img, 'b c (h p1) (w p2) -> b (h w) (p1 p2 c)', p1 = p, p2 = p)
+        print(f"image rearrange {x.shape}")
         x = self.patch_to_embedding(x)
+        print(f"patch to embedding {x.shape}")
         b, n, _ = x.shape
 
-        cls_tokens = repeat(self.cls_token, '() n d -> b n d', b = b)
-        x = torch.cat((cls_tokens, x), dim=1)
-        x += self.pos_embedding[:, :(n + 1)]
+#         cls_tokens = repeat(self.cls_token, '() n d -> b n d', b = b)
+#         x = torch.cat((cls_tokens, x), dim=1)
+#         x += self.pos_embedding[:, :(n + 1)]
+        x += self.pos_embedding[:, :(n)]
         x = self.dropout(x)
 
         x = self.transformer(x, mask)
-
-        x = self.to_cls_token(x[:, 0])
-        return self.mlp_head(x)
+        print(f"before class token {x.shape}")
+#         print(f"before class token x[:, 0] {x[:, 0].shape}")
+        
+#         x = self.to_cls_token(x[:, 0])
+#         print(f"after class token {x.shape}")
+#         print(f"self.mlp_head(x) {self.mlp_head(x).shape}")
+#         return self.mlp_head(x)
+        return x, self.pos_embedding[:, :(n)]

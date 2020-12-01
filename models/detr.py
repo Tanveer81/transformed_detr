@@ -16,7 +16,14 @@ from .matcher import build_matcher
 from .segmentation import (DETRsegm, PostProcessPanoptic, PostProcessSegm,
                            dice_loss, sigmoid_focal_loss)
 from .transformer import build_transformer
+from .vit_pytorch import ViT
 
+DEBUG = True
+def log(s, q=False):
+    if DEBUG:
+        print(s)
+        if q == True:
+            quit()
 
 class DETR(nn.Module):
     """ This is the DETR module that performs object detection """
@@ -38,7 +45,6 @@ class DETR(nn.Module):
         self.bbox_embed = MLP(hidden_dim, hidden_dim, 4, 3)
         self.query_embed = nn.Embedding(num_queries, hidden_dim)
         self.input_proj = nn.Conv2d(backbone.num_channels, hidden_dim, kernel_size=1)
-        # add ViT backbone
         self.backbone = backbone
         self.aux_loss = aux_loss
 
@@ -57,11 +63,44 @@ class DETR(nn.Module):
                - "aux_outputs": Optional, only returned when auxilary losses are activated. It is a list of
                                 dictionnaries containing the two above keys for each decoder layer.
         """
+        log("DETR forward", False)
         if isinstance(samples, (list, torch.Tensor)):
             samples = nested_tensor_from_tensor_list(samples)
+        '''
+            batch_size = 2
+            channel = 3
+            H = 768
+            W = 1151
+        '''
+#         for i in range(len(samples.tensors)):
+#             log(f"samples{i} {samples.tensors[i].shape}", False)
+#         log("finish", True)  
         features, pos = self.backbone(samples)
-
+#         log(f"features {features}", False)  
         src, mask = features[-1].decompose()
+    
+        # Here
+            # create mask of shape src(0,2,3) att true
+            # src torch.Size([2, 2048, 24, 36])
+            # mask torch.Size([2, 24, 36])
+            # pos[-1] torch.Size([2, 256, 24, 36])
+            # self.input_proj(src) torch.Size([2, 256, 24, 36])
+        # Inside next transformer
+            # src torch.Size([864, 2, 256])
+            # pos_embed torch.Size([864, 2, 256])
+            # query_embed torch.Size([100, 2, 256])
+            # mask torch.Size([2, 864])
+        #ViT 
+#         embedding: (torch.Size([1, 864, 1024]), pos : torch.Size([1, 864, 1024]))
+#         image torch.Size([1, 3, 768, 1152])
+#         image rearrange torch.Size([1, 864, 3072])
+#         patch to embedding torch.Size([1, 864, 1024])
+#         before class token torch.Size([1, 864, 1024])
+        log(f"src {src.shape}", False)  
+        log(f"mask {mask.shape}", False)  
+        log(f"pos[-1] {pos[-1].shape}", False) 
+        log(f"self.input_proj(src) {self.input_proj(src).shape}", False) 
+        
         assert mask is not None
         hs = self.transformer(self.input_proj(src), mask, self.query_embed.weight, pos[-1])[0]
 
@@ -318,6 +357,7 @@ def build(args):
         num_classes = 250
     device = torch.device(args.device)
 
+    # ViT 2
     backbone = build_backbone(args)
 
     transformer = build_transformer(args)

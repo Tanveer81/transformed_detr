@@ -15,6 +15,13 @@ import torch.nn.functional as F
 from torch import nn, Tensor
 
 
+DEBUG = True
+def log(s, q=False):
+    if DEBUG:
+        print(s)
+        if q == True:
+            quit()
+
 class Transformer(nn.Module):
 
     def __init__(self, d_model=512, nhead=8, num_encoder_layers=6,
@@ -48,9 +55,13 @@ class Transformer(nn.Module):
         # flatten NxCxHxW to HWxNxC
         bs, c, h, w = src.shape
         src = src.flatten(2).permute(2, 0, 1)
+        log(f"src {src.shape}", False) 
         pos_embed = pos_embed.flatten(2).permute(2, 0, 1)
+        log(f"pos_embed {pos_embed.shape}", False) 
         query_embed = query_embed.unsqueeze(1).repeat(1, bs, 1)
+        log(f"query_embed {query_embed.shape}", False) 
         mask = mask.flatten(1)
+        log(f"mask {mask.shape}", True) 
 
         tgt = torch.zeros_like(query_embed)
         memory = self.encoder(src, src_key_padding_mask=mask, pos=pos_embed)
