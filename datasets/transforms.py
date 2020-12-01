@@ -197,6 +197,15 @@ class RandomResize(object):
     def __call__(self, img, target=None):
         size = random.choice(self.sizes)
         return resize(img, target, size, self.max_size)
+    
+#  Custom Transformation for ViT to get fixed size image
+class FixedResize(object):
+    def __init__(self, size, max_size=None):
+        assert isinstance(size, tuple)
+        self.size = size
+        self.max_size = max_size
+    def __call__(self, img, target=None):
+        return resize(img, target, self.size, self.max_size)
 
 
 class RandomPad(object):

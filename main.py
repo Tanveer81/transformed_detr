@@ -16,7 +16,7 @@ from datasets import build_dataset, get_coco_api_from_dataset
 from engine import evaluate, train_one_epoch
 from models import build_model
 
-DEBUG = True
+DEBUG = False
 def log(s, q=False):
     if DEBUG:
         print(s)
@@ -146,6 +146,7 @@ def main(args):
     lr_scheduler = torch.optim.lr_scheduler.StepLR(optimizer, args.lr_drop)
 
     dataset_train = build_dataset(image_set='train', args=args)
+
     dataset_val = build_dataset(image_set='val', args=args)
 
     if args.distributed:

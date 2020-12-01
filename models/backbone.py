@@ -14,8 +14,6 @@ from typing import Dict, List
 from util.misc import NestedTensor, is_main_process
 
 from .position_encoding import build_position_encoding
-# Import ViT to be used as backbone
-from .vit_pytorch import ViT
 
 # debug utility
 DEBUG = False
@@ -93,7 +91,6 @@ class BackboneBase(nn.Module):
 #         log(f"out {out} -> ", q=False)  
         return out
 
-# ViT 5
 class Backbone(BackboneBase):
     """ResNet backbone with frozen BatchNorm."""
     def __init__(self, name: str,
@@ -123,28 +120,10 @@ class Joiner(nn.Sequential):
         log(f"out {out} ,\n pos {pos} -> ", q=True)
         return out, pos
 
-# ViT 3
 def build_backbone(args):
-    log(args,False)
-    # add ViT backbone
-    if args.backbone == "ViT":
-        backbone = ViT(
-            image_size = 256,
-            patch_size = 32,
-            num_classes = 1000,
-            channels = backbone.num_channels,
-            dim = 1024,
-            depth = 6,
-            heads = 8,
-            mlp_dim = 2048,
-            dropout = 0.1,
-            emb_dropout = 0.1
-            ).to(device)
-        
     position_embedding = build_position_encoding(args)
     train_backbone = args.lr_backbone > 0
     return_interm_layers = args.masks
-    # ViT 4
     backbone = Backbone(args.backbone, train_backbone, return_interm_layers, args.dilation)
     model = Joiner(backbone, position_embedding)
     model.num_channels = backbone.num_channels

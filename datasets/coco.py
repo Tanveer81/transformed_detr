@@ -12,7 +12,7 @@ import torchvision
 from pycocotools import mask as coco_mask
 
 import datasets.transforms as T
-
+from torchvision import transforms
 
 class CocoDetection(torchvision.datasets.CocoDetection):
     def __init__(self, img_folder, ann_file, transforms, return_masks):
@@ -143,6 +143,14 @@ def make_coco_transforms(image_set):
 
     raise ValueError(f'unknown {image_set}')
 
+# Transformatio created for ViT backbone
+# No random imagecropping or resizing
+def make_coco_transforms_ViT(image_set):
+    return T.Compose([
+        T.FixedResize((256,256), 256),
+        T.ToTensor()
+     ])
+
 
 def build(image_set, args):
     root = Path(args.coco_path)
@@ -152,7 +160,11 @@ def build(image_set, args):
         "train": (root / "train2017", root / "annotations" / f'{mode}_train2017.json'),
         "val": (root / "val2017", root / "annotations" / f'{mode}_val2017.json'),
     }
-
+    print("build coco dataset")
     img_folder, ann_file = PATHS[image_set]
-    dataset = CocoDetection(img_folder, ann_file, transforms=make_coco_transforms(image_set), return_masks=args.masks)
+    # dataset = CocoDetection(img_folder, ann_file, transforms=make_coco_transforms(image_set), return_masks=args.masks)
+    
+    # Use transformer for ViT
+    dataset = CocoDetection(img_folder, ann_file, transforms=make_coco_transforms_ViT(image_set), return_masks=args.masks)
+    
     return dataset
