@@ -46,6 +46,8 @@ class DETR(nn.Module):
         self.query_embed = nn.Embedding(num_queries, hidden_dim)
         if backbone != "ViT":
             self.input_proj = nn.Conv2d(backbone.num_channels, hidden_dim, kernel_size=1)
+        else:
+            self.vit = True
         self.backbone = backbone
         self.init = True
         self.aux_loss = aux_loss
@@ -104,7 +106,7 @@ class DETR(nn.Module):
             
          
             
-        if isinstance(self.backbone, str) and self.backbone == "ViT":
+        if self.vit:
             if self.init == True:
                 log(samples.tensors[0].shape[2])
                 self.backbone = ViT(

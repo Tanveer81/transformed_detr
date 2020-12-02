@@ -14,7 +14,7 @@ from datasets.coco_eval import CocoEvaluator
 from datasets.panoptic_eval import PanopticEvaluator
 
 
-DEBUG = True
+DEBUG = False
 def log(s, q=False):
     if DEBUG:
         print(s)
