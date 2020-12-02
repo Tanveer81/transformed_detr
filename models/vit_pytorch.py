@@ -130,13 +130,13 @@ class ViT(nn.Module):
 #         print(f"patch to embedding {x.shape}")
         b, n, _ = x.shape
 
-#         cls_tokens = repeat(self.cls_token, '() n d -> b n d', b = b)
-#         x = torch.cat((cls_tokens, x), dim=1)
-#         x += self.pos_embedding[:, :(n + 1)]
-        x += self.pos_embedding[:, :(n)]
+        cls_tokens = repeat(self.cls_token, '() n d -> b n d', b = b)
+        x = torch.cat((cls_tokens, x), dim=1)
+        x += self.pos_embedding[:, :(n + 1)]
+#         x += self.pos_embedding[:, :(n)]
         x = self.dropout(x)
 
         x = self.transformer(x, mask)        
 #         x = self.to_cls_token(x[:, 0])
 #         return self.mlp_head(x)
-        return x, self.pos_embedding[:, :(n)]
+        return x, self.pos_embedding[:, :(n+1)]
