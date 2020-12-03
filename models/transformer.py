@@ -15,13 +15,15 @@ import torch
 import torch.nn.functional as F
 from torch import nn, Tensor
 
-
 DEBUG = False
+
+
 def log(s, q=False):
     if DEBUG:
         print(s)
         if q == True:
             quit()
+
 
 class Transformer(nn.Module):
 
@@ -31,10 +33,13 @@ class Transformer(nn.Module):
                  return_intermediate_dec=False):
         super().__init__()
 
-        encoder_layer = TransformerEncoderLayer(d_model, nhead, dim_feedforward,
-                                                dropout, activation, normalize_before)
-        encoder_norm = nn.LayerNorm(d_model) if normalize_before else None
-        self.encoder = TransformerEncoder(encoder_layer, num_encoder_layers, encoder_norm)
+        self.backbone = "resnet"
+
+        if self.backbone == "resnet":
+            encoder_layer = TransformerEncoderLayer(d_model, nhead, dim_feedforward,
+                                                    dropout, activation, normalize_before)
+            encoder_norm = nn.LayerNorm(d_model) if normalize_before else None
+            self.encoder = TransformerEncoder(encoder_layer, num_encoder_layers, encoder_norm)
 
         decoder_layer = TransformerDecoderLayer(d_model, nhead, dim_feedforward,
                                                 dropout, activation, normalize_before)
@@ -54,47 +59,36 @@ class Transformer(nn.Module):
 
     def forward(self, src, mask, query_embed, pos_embed):
 
-        # If ViT is used then src shape is (N,C,HW)
-        if len(src.shape) == 3: # this branch is ViT
-            bs, hw, c  = src.shape
-            h = w = int(math.sqrt(hw))
-            src = src.permute(1, 0, 2)
-            pos_embed = pos_embed.permute(1, 0, 2)
-            
-#             src torch.Size([64, 2, 256])
-#             pos_embed torch.Size([64, 2, 256])
-#             query_embed torch.Size([100, 2, 256])
-            
-        else:
+        if self.backbone == "resnet":
             # flatten NxCxHxW to HWxNxC
             bs, c, h, w = src.shape
             src = src.flatten(2).permute(2, 0, 1)
             mask = mask.flatten(1)
             pos_embed = pos_embed.flatten(2).permute(2, 0, 1)
-            
-#             src torch.Size([64, 2, 256])
-#             pos_embed torch.Size([64, 2, 256])
-#             query_embed torch.Size([100, 2, 256])
 
-            # tgt torch.Size([100, 2, 256])
-            # memory torch.Size([64, 2, 256])
-            # bs, c, h, w 2 256 8 8
-            
-        query_embed = query_embed.unsqueeze(1).repeat(1, bs, 1)
-#         log("inside transformer")
-#         log(f"src {src.shape}", False) 
-#         log(f"pos_embed {pos_embed.shape}", False) 
-#         log(f"query_embed {query_embed.shape}", False) 
-#         log(f"mask {mask}", False) 
+            query_embed = query_embed.unsqueeze(1).repeat(1, bs, 1)
+            tgt = torch.zeros_like(query_embed)
 
-        tgt = torch.zeros_like(query_embed)
-#         log(f"tgt {tgt.shape}", False) 
-        memory = self.encoder(src, src_key_padding_mask=mask, pos=pos_embed)
-#         log(f"memory {memory.shape}", False)
-        hs = self.decoder(tgt, memory, memory_key_padding_mask=mask,
-                          pos=pos_embed, query_pos=query_embed)
-#         log(f"bs, c, h, w {bs} {c} {h} {w}", True)
-        return hs.transpose(1, 2), memory.permute(1, 2, 0).view(bs, c, h, w)
+            memory = self.encoder(src, src_key_padding_mask=mask, pos=pos_embed)
+            hs = self.decoder(tgt, memory, memory_key_padding_mask=mask,
+                              pos=pos_embed, query_pos=query_embed)
+
+            return hs.transpose(1, 2), memory.permute(1, 2, 0).view(bs, c, h, w)
+
+        # If ViT is used then src shape is (N,C,HW)
+        else:  # this branch is ViT
+            bs, hw, c = src.shape
+            h = w = int(math.sqrt(hw))
+            src = src.permute(1, 0, 2)
+            pos_embed = pos_embed.permute(1, 0, 2)
+
+            query_embed = query_embed.unsqueeze(1).repeat(1, bs, 1)
+            tgt = torch.zeros_like(query_embed)
+
+            hs = self.decoder(tgt, src, memory_key_padding_mask=mask,
+                              pos=pos_embed, query_pos=query_embed)
+
+            return hs.transpose(1, 2), src.permute(1, 2, 0).view(bs, c, h, w)
 
 
 class TransformerEncoder(nn.Module):

@@ -19,14 +19,18 @@ from .transformer import build_transformer
 from .vit_pytorch import ViT
 
 DEBUG = False
+
+
 def log(s, q=False):
     if DEBUG:
         print(s)
         if q == True:
             quit()
 
+
 class DETR(nn.Module):
     """ This is the DETR module that performs object detection """
+
     def __init__(self, backbone, transformer, num_classes, num_queries, aux_loss=False):
         """ Initializes the model.
         Parameters:
@@ -67,95 +71,61 @@ class DETR(nn.Module):
                - "aux_outputs": Optional, only returned when auxilary losses are activated. It is a list of
                                 dictionnaries containing the two above keys for each decoder layer.
         """
-        log("DETR forward", False)
-        '''
-            batch_size = 2
-            channel = 3
-            H = 768
-            W = 1151
-        '''
-#         for i in range(len(samples.tensors)):
-#             log(f"samples{i} {samples.tensors[i].shape}", False)
-#         log("finish", True)  
-        
-#         log(f"features {features}", False)  
-
-    
-        # Here
-            # create mask of shape src(0,2,3) att true
-            # src torch.Size([2, 2048, 24, 36])
-            # mask torch.Size([2, 24, 36])
-            # pos[-1] torch.Size([2, 256, 24, 36])
-            # self.input_proj(src) torch.Size([2, 256, 24, 36])
-        # Inside next transformer
-            # src torch.Size([864, 2, 256])
-            # pos_embed torch.Size([864, 2, 256])
-            # query_embed torch.Size([100, 2, 256])
-            # mask torch.Size([2, 864])
-        #ViT 
-#         embedding: (torch.Size([2, 864, 1024]), pos : torch.Size([2, 864, 1024]))
-#         image torch.Size([1, 3, 768, 1152])
-#         image rearrange torch.Size([1, 864, 3072])
-#         patch to embedding torch.Size([1, 864, 1024])
-#         before class token torch.Size([1, 864, 1024])
-
-        
-        
         if isinstance(samples, (list, torch.Tensor)):
             samples = nested_tensor_from_tensor_list(samples)
-            
-         
-            
+
         if self.vit:
             if self.init == True:
                 log(samples.tensors[0].shape[2])
                 self.backbone = ViT(
-                    image_size = samples.tensors[0].shape[2],
-                    patch_size = 32,
-#                     num_classes = 1,
-                    dim = self.transformer.d_model, # 256, # Last dimension of output tensor after linear transformation nn.Linear(..., dim).
-                    depth = 6, # Number of Transformer blocks.
-                    heads = 8,
-#                     mlp_dim = 2048,
-                    dropout = 0.1,
-                    emb_dropout = 0.1,
+                    image_size=samples.tensors[0].shape[2],
+                    patch_size=32,
+                    #  num_classes = 1,
+                    # 256, Last dimension of output tensor after linear transformation
+                    # nn.Linear(..., dim).
+                    dim=self.transformer.d_model,
+                    depth=6,  # Number of Transformer blocks.
+                    heads=8,
+                    # mlp_dim = 2048,
+                    dropout=0.1,
+                    emb_dropout=0.1,
                 ).cuda()
             self.init = False
-            src, pos =  self.backbone(samples) 
+            src, pos = self.backbone(samples)
             pos = pos.expand(src.shape[0], pos.shape[1], pos.shape[2])
-#             mask = torch.ones(src.shape[0], src.shape[2]).bool()
+            #             mask = torch.ones(src.shape[0], src.shape[2]).bool()
             mask = None
-            
+
             log(f"src {src.shape}", False)  # src torch.Size([2, 64, 256])
-            log(f"mask {mask}", False)  #  mask None
-            log(f"pos[-1] {pos.shape}", False) # pos[-1] torch.Size([2, 64, 256])
-            
-#             src torch.Size([2, 64, 2048])
-#             mask None
-#             pos[-1] torch.Size([2, 64, 2048])
-    
+            log(f"mask {mask}", False)  # mask None
+            log(f"pos[-1] {pos.shape}", False)  # pos[-1] torch.Size([2, 64, 256])
+
+            #             src torch.Size([2, 64, 2048])
+            #             mask None
+            #             pos[-1] torch.Size([2, 64, 2048])
+
+            self.transformer.backbone = "ViT"
             hs = self.transformer(src, mask, self.query_embed.weight, pos)[0]
-            log(f"hs {hs.shape}",True)
-                
+            log(f"hs {hs.shape}", True)
+
         else:
             features, pos = self.backbone(samples)
             src, mask = features[-1].decompose()
             assert mask is not None
-            
+
             log(f"src {src.shape}", False)  # src torch.Size([2, 2048, 8, 8])
             log(f"mask {mask.shape}", False)  # mask torch.Size([2, 8, 8])
-            log(f"pos[-1] {pos[-1].shape}", False) # pos[-1] torch.Size([2, 256, 8, 8])
-            log(f"Are positions same -> {torch.equal(pos[-1][0], pos[-1][1])}",False) # yes
-            log(f"self.input_proj(src) {self.input_proj(src).shape}", False) # self.input_proj(src) torch.Size([2, 256, 8, 8])
-            
-            hs = self.transformer(self.input_proj(src), mask, self.query_embed.weight, pos[-1])[0]
-        
+            log(f"pos[-1] {pos[-1].shape}", False)  # pos[-1] torch.Size([2, 256, 8, 8])
+            log(f"Are positions same -> {torch.equal(pos[-1][0], pos[-1][1])}", False)  # yes
+            log(f"self.input_proj(src) {self.input_proj(src).shape}",
+                False)  # self.input_proj(src) torch.Size([2, 256, 8, 8])
 
-        
+            hs = self.transformer(self.input_proj(src), mask, self.query_embed.weight, pos[-1])[0]
+
         # ViT
-#         src torch.Size([2, 64, 256])
-#         mask None
-#         pos[-1] torch.Size([64, 256])
+        #         src torch.Size([2, 64, 256])
+        #         mask None
+        #         pos[-1] torch.Size([64, 256])
 
         outputs_class = self.class_embed(hs)
         outputs_coord = self.bbox_embed(hs).sigmoid()
@@ -179,6 +149,7 @@ class SetCriterion(nn.Module):
         1) we compute hungarian assignment between ground truth boxes and the outputs of the model
         2) we supervise each pair of matched ground-truth / prediction (supervise class and box)
     """
+
     def __init__(self, num_classes, matcher, weight_dict, eos_coef, losses):
         """ Create the criterion.
         Parameters:
@@ -319,7 +290,8 @@ class SetCriterion(nn.Module):
 
         # Compute the average number of target boxes accross all nodes, for normalization purposes
         num_boxes = sum(len(t["labels"]) for t in targets)
-        num_boxes = torch.as_tensor([num_boxes], dtype=torch.float, device=next(iter(outputs.values())).device)
+        num_boxes = torch.as_tensor([num_boxes], dtype=torch.float,
+                                    device=next(iter(outputs.values())).device)
         if is_dist_avail_and_initialized():
             torch.distributed.all_reduce(num_boxes)
         num_boxes = torch.clamp(num_boxes / get_world_size(), min=1).item()
@@ -350,6 +322,7 @@ class SetCriterion(nn.Module):
 
 class PostProcess(nn.Module):
     """ This module converts the model's output into the format expected by the coco api"""
+
     @torch.no_grad()
     def forward(self, outputs, target_sizes):
         """ Perform the computation
@@ -386,7 +359,8 @@ class MLP(nn.Module):
         super().__init__()
         self.num_layers = num_layers
         h = [hidden_dim] * (num_layers - 1)
-        self.layers = nn.ModuleList(nn.Linear(n, k) for n, k in zip([input_dim] + h, h + [output_dim]))
+        self.layers = nn.ModuleList(
+            nn.Linear(n, k) for n, k in zip([input_dim] + h, h + [output_dim]))
 
     def forward(self, x):
         for i, layer in enumerate(self.layers):

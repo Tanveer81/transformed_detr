@@ -13,14 +13,6 @@ import util.misc as utils
 from datasets.coco_eval import CocoEvaluator
 from datasets.panoptic_eval import PanopticEvaluator
 
-
-DEBUG = False
-def log(s, q=False):
-    if DEBUG:
-        print(s)
-        if q == True:
-            quit()
-
 def train_one_epoch(model: torch.nn.Module, criterion: torch.nn.Module,
                     data_loader: Iterable, optimizer: torch.optim.Optimizer,
                     device: torch.device, epoch: int, max_norm: float = 0):
@@ -33,11 +25,6 @@ def train_one_epoch(model: torch.nn.Module, criterion: torch.nn.Module,
     print_freq = 10
     print("engine")
     for samples, targets in metric_logger.log_every(data_loader, print_freq, header):
-#     for samples, targets in data_loader:   
-        
-#         for i in range(len(samples.tensors)):
-#             log(f"samples{i} {samples.tensors[i].shape}", False)
-#     log("finish", True) 
         samples = samples.to(device)
         targets = [{k: v.to(device) for k, v in t.items()} for t in targets]
         outputs = model(samples)
@@ -69,7 +56,6 @@ def train_one_epoch(model: torch.nn.Module, criterion: torch.nn.Module,
         metric_logger.update(loss=loss_value, **loss_dict_reduced_scaled, **loss_dict_reduced_unscaled)
         metric_logger.update(class_error=loss_dict_reduced['class_error'])
         metric_logger.update(lr=optimizer.param_groups[0]["lr"])
-        log("finish", True) 
     # gather the stats from all processes
     metric_logger.synchronize_between_processes()
     print("Averaged stats:", metric_logger)

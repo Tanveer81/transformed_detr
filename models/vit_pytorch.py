@@ -139,4 +139,4 @@ class ViT(nn.Module):
         x = self.transformer(x, mask)        
 #         x = self.to_cls_token(x[:, 0])
 #         return self.mlp_head(x)
-        return x, self.pos_embedding[:, :(n+1)]
+        return x[:, :n], self.pos_embedding[:, :n]
