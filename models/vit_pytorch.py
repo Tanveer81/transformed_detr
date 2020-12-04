@@ -119,24 +119,19 @@ class ViT(nn.Module):
     def forward(self, img, mask = None):
         if not isinstance(img, torch.Tensor):
             img = img.tensors
-#         for i in range(len(img)):
-#             log(f"img{i} {img[i].shape}", False)
-#         log("finish", True)
+
         p = self.patch_size
 
         x = rearrange(img, 'b c (h p1) (w p2) -> b (h w) (p1 p2 c)', p1 = p, p2 = p)
-#         print(f"image rearrange {x.shape}")
         x = self.patch_to_embedding(x)
-#         print(f"patch to embedding {x.shape}")
         b, n, _ = x.shape
 
         cls_tokens = repeat(self.cls_token, '() n d -> b n d', b = b)
         x = torch.cat((cls_tokens, x), dim=1)
         x += self.pos_embedding[:, :(n + 1)]
-#         x += self.pos_embedding[:, :(n)]
         x = self.dropout(x)
 
         x = self.transformer(x, mask)        
-#         x = self.to_cls_token(x[:, 0])
-#         return self.mlp_head(x)
+        # x = self.to_cls_token(x[:, 0])
+        # return self.mlp_head(x)
         return x[:, :n], self.pos_embedding[:, :n]

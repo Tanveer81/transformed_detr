@@ -33,8 +33,10 @@ class Transformer(nn.Module):
                  return_intermediate_dec=False):
         super().__init__()
 
+        # In case of ViT backbone, self.backbone changes to "ViT" from detr
         self.backbone = "resnet"
 
+        # Only use encoder for resnet backbone and not for ViT
         if self.backbone == "resnet":
             encoder_layer = TransformerEncoderLayer(d_model, nhead, dim_feedforward,
                                                     dropout, activation, normalize_before)

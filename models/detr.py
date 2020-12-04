@@ -18,15 +18,6 @@ from .segmentation import (DETRsegm, PostProcessPanoptic, PostProcessSegm,
 from .transformer import build_transformer
 from .vit_pytorch import ViT
 
-DEBUG = False
-
-
-def log(s, q=False):
-    if DEBUG:
-        print(s)
-        if q == True:
-            quit()
-
 
 class DETR(nn.Module):
     """ This is the DETR module that performs object detection """
@@ -75,13 +66,12 @@ class DETR(nn.Module):
             samples = nested_tensor_from_tensor_list(samples)
 
         if self.vit:
-            if self.init == True:
-                log(samples.tensors[0].shape[2])
+            if self.init:
                 self.backbone = ViT(
                     image_size=samples.tensors[0].shape[2],
                     patch_size=32,
-                    #  num_classes = 1,
-                    # 256, Last dimension of output tensor after linear transformation
+                    # num_classes = 1,
+                    # dim = 256, Last dimension of output tensor after linear transformation
                     # nn.Linear(..., dim).
                     dim=self.transformer.d_model,
                     depth=6,  # Number of Transformer blocks.
@@ -93,39 +83,17 @@ class DETR(nn.Module):
             self.init = False
             src, pos = self.backbone(samples)
             pos = pos.expand(src.shape[0], pos.shape[1], pos.shape[2])
-            #             mask = torch.ones(src.shape[0], src.shape[2]).bool()
+            # mask = torch.ones(src.shape[0], src.shape[2]).bool()
             mask = None
-
-            log(f"src {src.shape}", False)  # src torch.Size([2, 64, 256])
-            log(f"mask {mask}", False)  # mask None
-            log(f"pos[-1] {pos.shape}", False)  # pos[-1] torch.Size([2, 64, 256])
-
-            #             src torch.Size([2, 64, 2048])
-            #             mask None
-            #             pos[-1] torch.Size([2, 64, 2048])
-
+            # In case of ViT DETR transformer would not include encoder
             self.transformer.backbone = "ViT"
             hs = self.transformer(src, mask, self.query_embed.weight, pos)[0]
-            log(f"hs {hs.shape}", True)
 
         else:
             features, pos = self.backbone(samples)
             src, mask = features[-1].decompose()
             assert mask is not None
-
-            log(f"src {src.shape}", False)  # src torch.Size([2, 2048, 8, 8])
-            log(f"mask {mask.shape}", False)  # mask torch.Size([2, 8, 8])
-            log(f"pos[-1] {pos[-1].shape}", False)  # pos[-1] torch.Size([2, 256, 8, 8])
-            log(f"Are positions same -> {torch.equal(pos[-1][0], pos[-1][1])}", False)  # yes
-            log(f"self.input_proj(src) {self.input_proj(src).shape}",
-                False)  # self.input_proj(src) torch.Size([2, 256, 8, 8])
-
             hs = self.transformer(self.input_proj(src), mask, self.query_embed.weight, pos[-1])[0]
-
-        # ViT
-        #         src torch.Size([2, 64, 256])
-        #         mask None
-        #         pos[-1] torch.Size([64, 256])
 
         outputs_class = self.class_embed(hs)
         outputs_coord = self.bbox_embed(hs).sigmoid()
