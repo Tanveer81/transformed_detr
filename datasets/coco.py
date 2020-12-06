@@ -12,7 +12,9 @@ import torchvision
 from pycocotools import mask as coco_mask
 
 import datasets.transforms as T
-from torchvision import transforms
+from models.pytorch_pretrained_vit.configs import PRETRAINED_MODELS
+from models.vit_pytorch import IMAGE_SIZE as vit_image_size
+
 
 class CocoDetection(torchvision.datasets.CocoDetection):
     def __init__(self, img_folder, ann_file, transforms, return_masks):
@@ -145,9 +147,9 @@ def make_coco_transforms(image_set):
 
 # Transformatio created for ViT backbone
 # No random imagecropping or resizing
-def make_coco_transforms_ViT(image_set):
+def make_coco_transforms_ViT(image_size):
     return T.Compose([
-        T.FixedResize((256,256), 256),
+        T.FixedResize((image_size,image_size),image_size),
         T.ToTensor()
      ])
 
@@ -164,6 +166,10 @@ def build(image_set, args):
     # dataset = CocoDetection(img_folder, ann_file, transforms=make_coco_transforms(image_set), return_masks=args.masks)
     
     # Use transformer for ViT
-    dataset = CocoDetection(img_folder, ann_file, transforms=make_coco_transforms_ViT(image_set), return_masks=args.masks)
+    if args.backbone == "ViT":
+        dataset = CocoDetection(img_folder, ann_file, transforms=make_coco_transforms_ViT(vit_image_size), return_masks=args.masks)
+
+    if args.backbone in PRETRAINED_MODELS.keys():
+        dataset = CocoDetection(img_folder, ann_file, transforms=make_coco_transforms_ViT(PRETRAINED_MODELS[args.backbone]["image_size"][0]), return_masks=args.masks)
     
     return dataset

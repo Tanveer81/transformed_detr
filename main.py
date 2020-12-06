@@ -44,6 +44,8 @@ def get_args_parser():
                         help="If true, we replace stride with dilation in the last convolutional block (DC5)")
     parser.add_argument('--position_embedding', default='sine', type=str, choices=('sine', 'learned'),
                         help="Type of positional embedding to use on top of the image features")
+    parser.add_argument('--pretrained_model', default='B_16_imagenet1k', type=str,
+                        help="ViT pre-trained model type")
 
     # * Transformer
     parser.add_argument('--enc_layers', default=6, type=int,
@@ -91,6 +93,8 @@ def get_args_parser():
     parser.add_argument('--remove_difficult', action='store_true')
 
     parser.add_argument('--output_dir', default='',
+                        help='path where to save, empty for no saving')
+    parser.add_argument('--pretrain_dir', default='/mnt/data/hannan/.cache/torch/checkpoints',
                         help='path where to save, empty for no saving')
     parser.add_argument('--device', default='cuda',
                         help='device to use for training / testing')

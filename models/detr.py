@@ -17,12 +17,14 @@ from .segmentation import (DETRsegm, PostProcessPanoptic, PostProcessSegm,
                            dice_loss, sigmoid_focal_loss)
 from .transformer import build_transformer
 from .vit_pytorch import ViT
+from models.pytorch_pretrained_vit.model import ViT as pre_trained_ViT
+from models.pytorch_pretrained_vit.configs import PRETRAINED_MODELS
 
 
 class DETR(nn.Module):
     """ This is the DETR module that performs object detection """
 
-    def __init__(self, backbone, transformer, num_classes, num_queries, aux_loss=False):
+    def __init__(self, backbone_name, backbone, transformer, num_classes, num_queries, aux_loss=False):
         """ Initializes the model.
         Parameters:
             backbone: torch module of the backbone to be used. See backbone.py
@@ -39,7 +41,7 @@ class DETR(nn.Module):
         self.class_embed = nn.Linear(hidden_dim, num_classes + 1)
         self.bbox_embed = MLP(hidden_dim, hidden_dim, 4, 3)
         self.query_embed = nn.Embedding(num_queries, hidden_dim)
-        if backbone != "ViT":
+        if backbone_name != "ViT" and backbone_name not in PRETRAINED_MODELS.keys():
             self.input_proj = nn.Conv2d(backbone.num_channels, hidden_dim, kernel_size=1)
         else:
             self.vit = True
@@ -66,28 +68,13 @@ class DETR(nn.Module):
             samples = nested_tensor_from_tensor_list(samples)
 
         if self.vit:
-            if self.init:
-                self.backbone = ViT(
-                    image_size=samples.tensors[0].shape[2],
-                    patch_size=32,
-                    # num_classes = 1,
-                    # dim = 256, Last dimension of output tensor after linear transformation
-                    # nn.Linear(..., dim).
-                    dim=self.transformer.d_model,
-                    depth=6,  # Number of Transformer blocks.
-                    heads=8,
-                    # mlp_dim = 2048,
-                    dropout=0.1,
-                    emb_dropout=0.1,
-                ).cuda()
-            self.init = False
             src, pos = self.backbone(samples)
             pos = pos.expand(src.shape[0], pos.shape[1], pos.shape[2])
             # mask = torch.ones(src.shape[0], src.shape[2]).bool()
             mask = None
             # In case of ViT DETR transformer would not include encoder
             self.transformer.backbone = "ViT"
-            hs = self.transformer(src, mask, self.query_embed.weight, pos)[0]
+            hs = self.transformer(src, mask, self.query_embed.weight, pos)
 
         else:
             features, pos = self.backbone(samples)
@@ -101,6 +88,7 @@ class DETR(nn.Module):
         if self.aux_loss:
             out['aux_outputs'] = self._set_aux_loss(outputs_class, outputs_coord)
         return out
+
 
     @torch.jit.unused
     def _set_aux_loss(self, outputs_class, outputs_coord):
@@ -352,15 +340,35 @@ def build(args):
         num_classes = 250
     device = torch.device(args.device)
 
-    # ViT 2
     if args.backbone == "ViT":
-        backbone = args.backbone
+        backbone = ViT(
+            patch_size=32,
+            # num_classes = 1,
+            # dim, Last dimension of output tensor after linear transformation
+            # nn.Linear(..., dim).
+            dim=args.hidden_dim,
+            depth=6,  # Number of Transformer blocks.
+            heads=8,
+            # mlp_dim = 2048,
+            dropout=0.1,
+            emb_dropout=0.1,
+        ).cuda()
+
+    elif args.backbone in PRETRAINED_MODELS.keys():
+        backbone = pre_trained_ViT(args.backbone,
+                                    pretrained=True,
+                                    weight_path=f"{args.pretrain_dir}/{args.backbone}.pth",
+                                    detr_compatibility=True,
+                                    ).cuda()
+        # trasformer d_model
+        args.hidden_dim = PRETRAINED_MODELS[args.backbone]['config']['dim']
     else:
         backbone = build_backbone(args)
 
     transformer = build_transformer(args)
 
     model = DETR(
+        args.backbone,
         backbone,
         transformer,
         num_classes=num_classes,
