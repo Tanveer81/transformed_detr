@@ -355,11 +355,17 @@ def build(args):
         ).cuda()
 
     elif args.backbone in PRETRAINED_MODELS.keys():
-        backbone = pre_trained_ViT(args.backbone,
-                                    pretrained=True,
-                                    weight_path=f"{args.pretrain_dir}/{args.backbone}.pth",
-                                    detr_compatibility=True,
-                                    ).cuda()
+        if args.overfit_one_batch:
+            backbone = pre_trained_ViT(args.backbone,
+                                       pretrained=False,
+                                       detr_compatibility=True,
+                                       ).cuda()
+        else:
+            backbone = pre_trained_ViT(args.backbone,
+                                        pretrained=True,
+                                        weight_path=f"{args.pretrain_dir}/{args.backbone}.pth",
+                                        detr_compatibility=True,
+                                        ).cuda()
         # trasformer d_model
         args.hidden_dim = PRETRAINED_MODELS[args.backbone]['config']['dim']
     else:

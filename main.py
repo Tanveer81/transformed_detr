@@ -15,16 +15,20 @@ import util.misc as utils
 from datasets import build_dataset, get_coco_api_from_dataset
 from engine import evaluate, train_one_epoch
 from models import build_model
+from tensorboardX import SummaryWriter
 
-DEBUG = False
-def log(s, q=False):
-    if DEBUG:
-        print(s)
-        if q == True:
-            quit()
+
+EXPERIMENT_NAME = "_train_1"
 
 def get_args_parser():
     parser = argparse.ArgumentParser('Set transformer detector', add_help=False)
+
+    parser.add_argument('--overfit_one_batch', default=False, type=bool)
+    parser.add_argument('--pretrained_model', default='B_16_imagenet1k', type=str,
+                        help="ViT pre-trained model type")
+    parser.add_argument('--pretrain_dir', default='/mnt/data/hannan/.cache/torch/checkpoints',
+                        help='path where to save, empty for no saving')
+
     parser.add_argument('--lr', default=1e-4, type=float)
     parser.add_argument('--lr_backbone', default=1e-5, type=float)
     parser.add_argument('--batch_size', default=2, type=int)
@@ -42,10 +46,9 @@ def get_args_parser():
                         help="Name of the convolutional backbone to use")
     parser.add_argument('--dilation', action='store_true',
                         help="If true, we replace stride with dilation in the last convolutional block (DC5)")
-    parser.add_argument('--position_embedding', default='sine', type=str, choices=('sine', 'learned'),
+    parser.add_argument('--position_embedding', default='sine', type=str,
+                        choices=('sine', 'learned'),
                         help="Type of positional embedding to use on top of the image features")
-    parser.add_argument('--pretrained_model', default='B_16_imagenet1k', type=str,
-                        help="ViT pre-trained model type")
 
     # * Transformer
     parser.add_argument('--enc_layers', default=6, type=int,
@@ -94,8 +97,7 @@ def get_args_parser():
 
     parser.add_argument('--output_dir', default='',
                         help='path where to save, empty for no saving')
-    parser.add_argument('--pretrain_dir', default='/mnt/data/hannan/.cache/torch/checkpoints',
-                        help='path where to save, empty for no saving')
+
     parser.add_argument('--device', default='cuda',
                         help='device to use for training / testing')
     parser.add_argument('--seed', default=42, type=int)
@@ -108,7 +110,8 @@ def get_args_parser():
     # distributed training parameters
     parser.add_argument('--world_size', default=1, type=int,
                         help='number of distributed processes')
-    parser.add_argument('--dist_url', default='env://', help='url used to set up distributed training')
+    parser.add_argument('--dist_url', default='env://',
+                        help='url used to set up distributed training')
     return parser
 
 
@@ -126,9 +129,7 @@ def main(args):
     np.random.seed(seed)
     random.seed(seed)
 
-    # ViT 1 
     model, criterion, postprocessors = build_model(args)
-#     log(f"model{model}", True)
     model.to(device)
 
     model_without_ddp = model
@@ -139,9 +140,11 @@ def main(args):
     print('number of params:', n_parameters)
 
     param_dicts = [
-        {"params": [p for n, p in model_without_ddp.named_parameters() if "backbone" not in n and p.requires_grad]},
+        {"params": [p for n, p in model_without_ddp.named_parameters() if
+                    "backbone" not in n and p.requires_grad]},
         {
-            "params": [p for n, p in model_without_ddp.named_parameters() if "backbone" in n and p.requires_grad],
+            "params": [p for n, p in model_without_ddp.named_parameters() if
+                       "backbone" in n and p.requires_grad],
             "lr": args.lr_backbone,
         },
     ]
@@ -166,7 +169,8 @@ def main(args):
     data_loader_train = DataLoader(dataset_train, batch_sampler=batch_sampler_train,
                                    collate_fn=utils.collate_fn, num_workers=args.num_workers)
     data_loader_val = DataLoader(dataset_val, args.batch_size, sampler=sampler_val,
-                                 drop_last=False, collate_fn=utils.collate_fn, num_workers=args.num_workers)
+                                 drop_last=False, collate_fn=utils.collate_fn,
+                                 num_workers=args.num_workers)
 
     if args.dataset_file == "coco_panoptic":
         # We also evaluate AP during panoptic training, on original coco DS
@@ -199,6 +203,9 @@ def main(args):
             utils.save_on_master(coco_evaluator.coco_eval["bbox"].eval, output_dir / "eval.pth")
         return
 
+    # Create tensorboard writer
+    writer = SummaryWriter(comment=EXPERIMENT_NAME)
+
     print("Start training")
     start_time = time.time()
     for epoch in range(args.start_epoch, args.epochs):
@@ -206,8 +213,16 @@ def main(args):
             sampler_train.set_epoch(epoch)
         train_stats = train_one_epoch(
             model, criterion, data_loader_train, optimizer, device, epoch,
-            args.clip_max_norm)
+            args.clip_max_norm, args.overfit_one_batch)
         lr_scheduler.step()
+
+        # Only log train evaluation in tensorboard for overfitting
+        if args.overfit_one_batch:
+            for k, v in train_stats.items():
+                writer.add_scalar(k, v, epoch)
+            writer.add_scalar('n_parameters', n_parameters, epoch)
+            continue
+
         if args.output_dir:
             checkpoint_paths = [output_dir / 'checkpoint.pth']
             # extra checkpoint before LR drop and every 100 epochs
@@ -231,6 +246,13 @@ def main(args):
                      'epoch': epoch,
                      'n_parameters': n_parameters}
 
+        # Log into Tensorboard
+        for k, v in train_stats.items():
+            writer.add_scalar(k, v, epoch)
+        for k, v in test_stats.items():
+            writer.add_scalar(k, v, epoch)
+        writer.add_scalar('n_parameters', n_parameters, epoch)
+
         if args.output_dir and utils.is_main_process():
             with (output_dir / "log.txt").open("a") as f:
                 f.write(json.dumps(log_stats) + "\n")
@@ -250,9 +272,12 @@ def main(args):
     total_time_str = str(datetime.timedelta(seconds=int(total_time)))
     print('Training time {}'.format(total_time_str))
 
+    writer.close()
+
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser('DETR training and evaluation script', parents=[get_args_parser()])
+    parser = argparse.ArgumentParser('DETR training and evaluation script',
+                                     parents=[get_args_parser()])
     args = parser.parse_args()
     print(args)
     if args.output_dir:
