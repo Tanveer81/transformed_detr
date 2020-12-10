@@ -66,7 +66,8 @@ def train_one_epoch(model: torch.nn.Module, criterion: torch.nn.Module,
 
 
 @torch.no_grad()
-def evaluate(model, criterion, postprocessors, data_loader, base_ds, device, output_dir):
+def evaluate(model, criterion, postprocessors, data_loader, base_ds, device, output_dir,
+             overfit_one_batch=False):
     model.eval()
     criterion.eval()
 
@@ -123,6 +124,9 @@ def evaluate(model, criterion, postprocessors, data_loader, base_ds, device, out
                 res_pano[i]["file_name"] = file_name
 
             panoptic_evaluator.update(res_pano)
+
+        if overfit_one_batch:
+            break
 
     # gather the stats from all processes
     metric_logger.synchronize_between_processes()

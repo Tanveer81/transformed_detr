@@ -18,11 +18,10 @@ from models import build_model
 from tensorboardX import SummaryWriter
 
 
-EXPERIMENT_NAME = "_train_1"
-
 def get_args_parser():
     parser = argparse.ArgumentParser('Set transformer detector', add_help=False)
 
+    parser.add_argument('--experiment_name', default='train', type=str)
     parser.add_argument('--overfit_one_batch', default=False, type=bool)
     parser.add_argument('--pretrained_model', default='B_16_imagenet1k', type=str,
                         help="ViT pre-trained model type")
@@ -204,7 +203,7 @@ def main(args):
         return
 
     # Create tensorboard writer
-    writer = SummaryWriter(comment=EXPERIMENT_NAME)
+    writer = SummaryWriter(comment=args.experiment_name)
 
     print("Start training")
     start_time = time.time()
@@ -215,13 +214,6 @@ def main(args):
             model, criterion, data_loader_train, optimizer, device, epoch,
             args.clip_max_norm, args.overfit_one_batch)
         lr_scheduler.step()
-
-        # Only log train evaluation in tensorboard for overfitting
-        if args.overfit_one_batch:
-            for k, v in train_stats.items():
-                writer.add_scalar(k, v, epoch)
-            writer.add_scalar('n_parameters', n_parameters, epoch)
-            continue
 
         if args.output_dir:
             checkpoint_paths = [output_dir / 'checkpoint.pth']
@@ -238,7 +230,8 @@ def main(args):
                 }, checkpoint_path)
 
         test_stats, coco_evaluator = evaluate(
-            model, criterion, postprocessors, data_loader_val, base_ds, device, args.output_dir
+            model, criterion, postprocessors, data_loader_val, base_ds, device, args.output_dir,
+            args.overfit_one_batch
         )
 
         log_stats = {**{f'train_{k}': v for k, v in train_stats.items()},
@@ -248,10 +241,11 @@ def main(args):
 
         # Log into Tensorboard
         for k, v in train_stats.items():
-            writer.add_scalar(k, v, epoch)
+            if isinstance(v, float):
+                writer.add_scalar(f'train_{k}', v, epoch)
         for k, v in test_stats.items():
-            writer.add_scalar(k, v, epoch)
-        writer.add_scalar('n_parameters', n_parameters, epoch)
+            if isinstance(v, float):
+                writer.add_scalar(f'test_{k}', v, epoch)
 
         if args.output_dir and utils.is_main_process():
             with (output_dir / "log.txt").open("a") as f:
