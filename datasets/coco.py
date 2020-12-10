@@ -149,8 +149,9 @@ def make_coco_transforms(image_set):
 # No random imagecropping or resizing
 def make_coco_transforms_ViT(image_size):
     return T.Compose([
-        T.FixedResize((image_size,image_size),image_size),
-        T.ToTensor()
+        T.FixedResize((image_size, image_size), image_size),
+        T.ToTensor(),
+        T.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
      ])
 
 
@@ -163,13 +164,15 @@ def build(image_set, args):
         "val": (root / "val2017", root / "annotations" / f'{mode}_val2017.json'),
     }
     img_folder, ann_file = PATHS[image_set]
-    # dataset = CocoDetection(img_folder, ann_file, transforms=make_coco_transforms(image_set), return_masks=args.masks)
-    
+
     # Use transformer for ViT
     if args.backbone == "ViT":
         dataset = CocoDetection(img_folder, ann_file, transforms=make_coco_transforms_ViT(vit_image_size), return_masks=args.masks)
 
-    if args.backbone in PRETRAINED_MODELS.keys():
+    elif args.backbone in PRETRAINED_MODELS.keys():
         dataset = CocoDetection(img_folder, ann_file, transforms=make_coco_transforms_ViT(PRETRAINED_MODELS[args.backbone]["image_size"][0]), return_masks=args.masks)
-    
+
+    else:
+        dataset = CocoDetection(img_folder, ann_file, transforms=make_coco_transforms(image_set), return_masks=args.masks)
+
     return dataset
