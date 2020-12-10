@@ -5,7 +5,7 @@ import json
 import random
 import time
 from pathlib import Path
-
+import os
 import numpy as np
 import torch
 from torch.utils.data import DataLoader, DistributedSampler
@@ -115,6 +115,7 @@ def get_args_parser():
 
 
 def main(args):
+    os.environ["CUDA_VISIBLE_DEVICES"] = "0,1"
     utils.init_distributed_mode(args)
     print("git:\n  {}\n".format(utils.get_sha()))
 
@@ -129,11 +130,13 @@ def main(args):
     random.seed(seed)
 
     model, criterion, postprocessors = build_model(args)
+
     model.to(device)
 
     model_without_ddp = model
     if args.distributed:
-        model = torch.nn.parallel.DistributedDataParallel(model, device_ids=[args.gpu])
+        model = torch.nn.parallel.DistributedDataParallel(model, device_ids=[args.gpu],
+                                                          find_unused_parameters=True)
         model_without_ddp = model.module
     n_parameters = sum(p.numel() for p in model.parameters() if p.requires_grad)
     print('number of params:', n_parameters)
