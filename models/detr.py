@@ -43,6 +43,7 @@ class DETR(nn.Module):
         self.query_embed = nn.Embedding(num_queries, hidden_dim)
         if backbone_name != "ViT" and backbone_name not in PRETRAINED_MODELS.keys():
             self.input_proj = nn.Conv2d(backbone.num_channels, hidden_dim, kernel_size=1)
+            self.vit = False
         else:
             self.vit = True
         self.backbone = backbone
