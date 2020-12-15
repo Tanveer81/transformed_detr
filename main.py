@@ -16,6 +16,7 @@ from datasets import build_dataset, get_coco_api_from_dataset
 from engine import evaluate, train_one_epoch
 from models import build_model
 from tensorboardX import SummaryWriter
+torch.multiprocessing.set_sharing_strategy('file_system')
 
 
 def get_args_parser():
@@ -34,6 +35,7 @@ def get_args_parser():
     parser.add_argument('--weight_decay', default=1e-4, type=float)
     parser.add_argument('--epochs', default=300, type=int)
     parser.add_argument('--lr_drop', default=200, type=int)
+    parser.add_argument('--print_freq', default=500, type=int)
     parser.add_argument('--clip_max_norm', default=0.1, type=float,
                         help='gradient clipping max norm')
 
@@ -115,7 +117,7 @@ def get_args_parser():
 
 
 def main(args):
-    os.environ["CUDA_VISIBLE_DEVICES"] = "0,1"
+    os.environ["CUDA_VISIBLE_DEVICES"] = "0,1,2,3"
     utils.init_distributed_mode(args)
     print("git:\n  {}\n".format(utils.get_sha()))
 
@@ -216,7 +218,7 @@ def main(args):
             sampler_train.set_epoch(epoch)
         train_stats = train_one_epoch(
             model, criterion, data_loader_train, optimizer, device, epoch,
-            args.clip_max_norm, args.overfit_one_batch)
+            args.clip_max_norm, args.overfit_one_batch, args.print_feq)
         lr_scheduler.step()
 
         if args.output_dir:
