@@ -58,7 +58,7 @@ def train_one_epoch(model: torch.nn.Module, criterion: torch.nn.Module,
         metric_logger.update(lr=optimizer.param_groups[0]["lr"])
 
         batch_num = batch_num + 1
-        if (overfit_one_batch and batch_num >= 128):
+        if (overfit_one_batch and batch_num > 128):
             break
 
     # gather the stats from all processes

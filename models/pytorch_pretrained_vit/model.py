@@ -10,6 +10,7 @@ from torch.nn import functional as F
 from .transformer import Transformer
 from .utils import load_pretrained_weights, as_tuple
 from .configs import PRETRAINED_MODELS
+from ..position_encoding import PositionEmbeddingSine
 
 
 class PositionalEmbedding1D(nn.Module):
@@ -22,6 +23,7 @@ class PositionalEmbedding1D(nn.Module):
     def forward(self, x):
         """Input has shape `(batch_size, seq_len, emb_dim)`"""
         return x + self.pos_embedding
+
 
 class ViT(nn.Module):
     """
@@ -44,6 +46,7 @@ class ViT(nn.Module):
             self,
             name: Optional[str] = None,
             pretrained: bool = False,
+            position_embedding: str = "sine",  # ('sine', 'learned')
             weight_path: Optional[str] = None,
             detr_compatibility: bool = False,
             patches: int = 16,
@@ -67,6 +70,7 @@ class ViT(nn.Module):
         # Configuration
         self.weight_path = weight_path
         self.detr_compatibility = detr_compatibility
+        self.position_embedding = position_embedding
         if name is None:
             check_msg = 'must specify name of pretrained model'
             assert not pretrained, check_msg
@@ -93,7 +97,7 @@ class ViT(nn.Module):
             if num_classes is None:
                 num_classes = PRETRAINED_MODELS[name]['num_classes']
         self.image_size = image_size
-
+        self.dim = dim
         # Image and patch sizes
         h, w = as_tuple(image_size)  # image sizes
         fh, fw = as_tuple(patches)  # patch sizes
@@ -125,7 +129,7 @@ class ViT(nn.Module):
         else:
             pre_logits_size = dim
 
-        # Classifier head
+            # Classifier head
             self.norm = nn.LayerNorm(pre_logits_size, eps=1e-6)
             self.fc = nn.Linear(pre_logits_size, num_classes)
 
@@ -180,11 +184,14 @@ class ViT(nn.Module):
         if hasattr(self, 'class_token'):
             x = torch.cat((self.class_token.expand(b, -1, -1), x), dim=1)  # b,gh*gw+1,d
         if hasattr(self, 'positional_embedding'):
-            x = self.positional_embedding(x) # b,gh*gw+1,d
+            x = self.positional_embedding(x)  # b,gh*gw+1,d
         x = self.transformer(x)  # b,gh*gw+1,d
 
         if self.detr_compatibility:
-            return x, self.positional_embedding.pos_embedding
+            if self.position_embedding == "sine":
+                return x, PositionEmbeddingSine(self.dim/2, normalize=True)
+            else:
+                return x, self.positional_embedding.pos_embedding
 
         if hasattr(self, 'pre_logits'):
             x = self.pre_logits(x)
