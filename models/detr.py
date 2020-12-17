@@ -70,11 +70,12 @@ class DETR(nn.Module):
 
         if self.vit:
             src, pos = self.backbone(samples)
-            pos = pos.expand(src.shape[0], pos.shape[1], pos.shape[2])
+            if self.backbone.position_embedding == "learned":
+                pos = pos.expand(src.shape[0], pos.shape[1], pos.shape[2])
             # mask = torch.ones(src.shape[0], src.shape[2]).bool()
             mask = None
             # In case of ViT DETR transformer would not include encoder
-            self.transformer.backbone = "ViT"
+
             hs = self.transformer(src, mask, self.query_embed.weight, pos)
 
         else:
@@ -342,6 +343,7 @@ def build(args):
     device = torch.device(args.device)
 
     if args.backbone == "ViT":
+        args.backbone_name = "ViT"
         backbone = ViT(
             patch_size=32,
             # num_classes = 1,
@@ -356,21 +358,26 @@ def build(args):
         )
 
     elif args.backbone in PRETRAINED_MODELS.keys():
+        args.backbone_name = "ViT"
         if args.overfit_one_batch:
             backbone = pre_trained_ViT(args.backbone,
                                        pretrained=False,
                                        detr_compatibility=True,
+                                       position_embedding = args.position_embedding
                                        )
         else:
             backbone = pre_trained_ViT(args.backbone,
                                         pretrained=True,
                                         weight_path=f"{args.pretrain_dir}/{args.backbone}.pth",
                                         detr_compatibility=True,
+                                        position_embedding = args.position_embedding
                                         )
         # trasformer d_model
         args.hidden_dim = PRETRAINED_MODELS[args.backbone]['config']['dim']
     else:
+        args.backbone_name = "resnet"
         backbone = build_backbone(args)
+
 
     transformer = build_transformer(args)
 

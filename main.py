@@ -28,6 +28,7 @@ def get_args_parser():
                         help="ViT pre-trained model type")
     parser.add_argument('--pretrain_dir', default='/mnt/data/hannan/.cache/torch/checkpoints',
                         help='path where to save, empty for no saving')
+    parser.add_argument('--random_image_size', default=True, type=bool)
 
     parser.add_argument('--lr', default=1e-4, type=float)
     parser.add_argument('--lr_backbone', default=1e-5, type=float)
@@ -218,7 +219,7 @@ def main(args):
             sampler_train.set_epoch(epoch)
         train_stats = train_one_epoch(
             model, criterion, data_loader_train, optimizer, device, epoch,
-            args.clip_max_norm, args.overfit_one_batch, args.print_feq)
+            args.clip_max_norm, args.overfit_one_batch, args.print_freq)
         lr_scheduler.step()
 
         if args.output_dir:

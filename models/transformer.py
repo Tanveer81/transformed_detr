@@ -30,14 +30,13 @@ class Transformer(nn.Module):
     def __init__(self, d_model=512, nhead=8, num_encoder_layers=6,
                  num_decoder_layers=6, dim_feedforward=2048, dropout=0.1,
                  activation="relu", normalize_before=False,
-                 return_intermediate_dec=False):
+                 return_intermediate_dec=False, backbone_name = 'resnet'):
         super().__init__()
 
         # In case of ViT backbone, self.backbone changes to "ViT" from detr
-        self.backbone = "resnet"
-
+        self.backbone = backbone_name
         # Only use encoder for resnet backbone and not for ViT
-        if self.backbone == "resnet":
+        if backbone_name == "resnet":
             encoder_layer = TransformerEncoderLayer(d_model, nhead, dim_feedforward,
                                                     dropout, activation, normalize_before)
             encoder_norm = nn.LayerNorm(d_model) if normalize_before else None
@@ -317,6 +316,7 @@ def build_transformer(args):
         num_decoder_layers=args.dec_layers,
         normalize_before=args.pre_norm,
         return_intermediate_dec=True,
+        backbone_name=args.backbone_name
     )
 
 

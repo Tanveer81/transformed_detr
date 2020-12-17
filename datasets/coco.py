@@ -204,8 +204,10 @@ def build(image_set, args):
         dataset = CocoDetection(img_folder, ann_file, transforms=make_coco_transforms_ViT(vit_image_size), return_masks=args.masks)
 
     elif args.backbone in PRETRAINED_MODELS.keys():
-        dataset = CocoDetection(img_folder, ann_file, transforms=make_coco_transforms_ViT_2(image_set, PRETRAINED_MODELS[args.backbone]["image_size"][0]), return_masks=args.masks)
-
+        if args.random_image_size:
+            dataset = CocoDetection(img_folder, ann_file, transforms=make_coco_transforms(image_set), return_masks=args.masks)
+        else:
+            dataset = CocoDetection(img_folder, ann_file, transforms=make_coco_transforms_ViT_2(image_set, PRETRAINED_MODELS[args.backbone]["image_size"][0]), return_masks=args.masks)
     else:
         dataset = CocoDetection(img_folder, ann_file, transforms=make_coco_transforms(image_set), return_masks=args.masks)
 

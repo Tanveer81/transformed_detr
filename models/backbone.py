@@ -15,14 +15,6 @@ from util.misc import NestedTensor, is_main_process
 
 from .position_encoding import build_position_encoding
 
-# debug utility
-DEBUG = False
-def log(s, q=False):
-    if DEBUG:
-        print(s)
-        if q == True:
-            quit()
-
 class FrozenBatchNorm2d(torch.nn.Module):
     """
     BatchNorm2d where the batch statistics and the affine parameters are fixed.
