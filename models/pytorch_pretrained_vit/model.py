@@ -16,7 +16,8 @@ from ..position_encoding import PositionEmbeddingSine
 class PositionalEmbedding1D(nn.Module):
     """Adds (optionally learned) positional embeddings to the inputs."""
 
-    def __init__(self, seq_len, dim):
+    def \
+            __init__(self, seq_len, dim):
         super().__init__()
         self.pos_embedding = nn.Parameter(torch.zeros(1, seq_len, dim))
 
@@ -61,7 +62,7 @@ class ViT(nn.Module):
             classifier: str = 'token',
             positional_embedding: str = '1d',
             in_channels: int = 3,
-            image_size: Optional[int] = None,
+            image_size: Optional[tuple] = (608, 800),
             num_classes: Optional[int] = None,
     ):
 
@@ -93,20 +94,21 @@ class ViT(nn.Module):
             representation_size = config['representation_size']
             classifier = config['classifier']
             if image_size is None:
-                image_size = PRETRAINED_MODELS[name]['image_size']
+                image_size = as_tuple(PRETRAINED_MODELS[name]['image_size'],
+                                      PRETRAINED_MODELS[name]['image_size'])
             if num_classes is None:
                 num_classes = PRETRAINED_MODELS[name]['num_classes']
         self.image_size = image_size
         self.dim = dim
         # Image and patch sizes
-        h, w = as_tuple(image_size)  # image sizes
+        h, w = image_size  # image sizes
         fh, fw = as_tuple(patches)  # patch sizes
         gh, gw = h // fh, w // fw  # number of patches
         seq_len = gh * gw
 
         # Patch embedding
         self.patch_embedding = nn.Conv2d(in_channels, dim, kernel_size=(fh, fw), stride=(fh, fw))
-        self.AdaptiveAvgPool2d = nn.AdaptiveAvgPool2d((gh, gw))
+        # self.AdaptiveAvgPool2d = nn.AdaptiveAvgPool2d((gh, gw))
 
         # Class token
         if classifier == 'token':
@@ -181,7 +183,7 @@ class ViT(nn.Module):
             x = x.tensors
         b, c, fh, fw = x.shape
         x = self.patch_embedding(x)  # b,d,gh,gw
-        x = self.AdaptiveAvgPool2d(x)
+        # x = self.AdaptiveAvgPool2d(x)
         x = x.flatten(2).transpose(1, 2)  # b,gh*gw,d
         if hasattr(self, 'class_token'):
             x = torch.cat((self.class_token.expand(b, -1, -1), x), dim=1)  # b,gh*gw+1,d

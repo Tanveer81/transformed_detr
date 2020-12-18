@@ -17,7 +17,7 @@ from engine import evaluate, train_one_epoch
 from models import build_model
 from tensorboardX import SummaryWriter
 torch.multiprocessing.set_sharing_strategy('file_system')
-
+import wandb
 
 def get_args_parser():
     parser = argparse.ArgumentParser('Set transformer detector', add_help=False)
@@ -28,7 +28,7 @@ def get_args_parser():
                         help="ViT pre-trained model type")
     parser.add_argument('--pretrain_dir', default='/mnt/data/hannan/.cache/torch/checkpoints',
                         help='path where to save, empty for no saving')
-    parser.add_argument('--random_image_size', default=True, type=bool)
+    parser.add_argument('--random_image_size', default=False, type=bool)
 
     parser.add_argument('--lr', default=1e-4, type=float)
     parser.add_argument('--lr_backbone', default=1e-5, type=float)
@@ -118,6 +118,7 @@ def get_args_parser():
 
 
 def main(args):
+    # wandb.login()
     os.environ["CUDA_VISIBLE_DEVICES"] = "0,1,2,3"
     utils.init_distributed_mode(args)
     print("git:\n  {}\n".format(utils.get_sha()))
