@@ -15,7 +15,7 @@ import util.misc as utils
 from datasets import build_dataset, get_coco_api_from_dataset
 from engine import evaluate, train_one_epoch
 from models import build_model
-from tensorboardX import SummaryWriter
+# from tensorboardX import SummaryWriter
 
 torch.multiprocessing.set_sharing_strategy('file_system')
 import wandb
@@ -212,7 +212,7 @@ def main(args):
         return
 
     # Create tensorboard writer
-    writer = SummaryWriter(comment=args.experiment_name)
+    # writer = SummaryWriter(comment=args.experiment_name)
 
     # tell wandb to get started
     with wandb.init(project="vit-demo-1", config=args, dir="../"):
@@ -274,11 +274,11 @@ def main(args):
             # Log into Tensorboard
             for k, v in train_stats.items():
                 if isinstance(v, float):
-                    writer.add_scalar(f'train_{k}', v, epoch)
+                    # writer.add_scalar(f'train_{k}', v, epoch)
                     wandb.log({f'train_{k}': v, 'epoch': epoch})
             for k, v in test_stats.items():
                 if isinstance(v, float):
-                    writer.add_scalar(f'test_{k}', v, epoch)
+                    # writer.add_scalar(f'test_{k}', v, epoch)
                     wandb.log({f'test_{k}': v, 'epoch': epoch})
 
             if args.output_dir and utils.is_main_process():
@@ -300,7 +300,7 @@ def main(args):
     total_time_str = str(datetime.timedelta(seconds=int(total_time)))
     print('Training time {}'.format(total_time_str))
 
-    writer.close()
+    # writer.close()
 
 
 if __name__ == '__main__':
