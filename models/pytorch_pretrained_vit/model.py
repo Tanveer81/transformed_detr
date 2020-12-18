@@ -105,8 +105,8 @@ class ViT(nn.Module):
         seq_len = gh * gw
 
         # Patch embedding
-        self.AdaptiveAvgPool2d = nn.AdaptiveAvgPool2d((h, w))
         self.patch_embedding = nn.Conv2d(in_channels, dim, kernel_size=(fh, fw), stride=(fh, fw))
+        self.AdaptiveAvgPool2d = nn.AdaptiveAvgPool2d((gh, gw))
 
         # Class token
         if classifier == 'token':
@@ -180,8 +180,8 @@ class ViT(nn.Module):
         if not isinstance(x, torch.Tensor):
             x = x.tensors
         b, c, fh, fw = x.shape
-        x = self.AdaptiveAvgPool2d(x)
         x = self.patch_embedding(x)  # b,d,gh,gw
+        x = self.AdaptiveAvgPool2d(x)
         x = x.flatten(2).transpose(1, 2)  # b,gh*gw,d
         if hasattr(self, 'class_token'):
             x = torch.cat((self.class_token.expand(b, -1, -1), x), dim=1)  # b,gh*gw+1,d

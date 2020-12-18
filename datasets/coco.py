@@ -13,7 +13,7 @@ from pycocotools import mask as coco_mask
 
 import datasets.transforms as T
 from models.pytorch_pretrained_vit.configs import PRETRAINED_MODELS
-from models.vit_pytorch import IMAGE_SIZE as vit_image_size
+from models.pytorch_pretrained_vit.vit_pytorch_old import IMAGE_SIZE as vit_image_size
 
 
 class CocoDetection(torchvision.datasets.CocoDetection):

@@ -16,7 +16,7 @@ from .matcher import build_matcher
 from .segmentation import (DETRsegm, PostProcessPanoptic, PostProcessSegm,
                            dice_loss, sigmoid_focal_loss)
 from .transformer import build_transformer
-from .vit_pytorch import ViT
+from models.pytorch_pretrained_vit.vit_pytorch_old import ViT
 from models.pytorch_pretrained_vit.model import ViT as pre_trained_ViT
 from models.pytorch_pretrained_vit.configs import PRETRAINED_MODELS
 
