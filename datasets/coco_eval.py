@@ -17,6 +17,7 @@ from pycocotools.coco import COCO
 import pycocotools.mask as mask_util
 
 from util.misc import all_gather
+import wandb
 
 
 class CocoEvaluator(object):

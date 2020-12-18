@@ -62,7 +62,7 @@ class ViT(nn.Module):
             classifier: str = 'token',
             positional_embedding: str = '1d',
             in_channels: int = 3,
-            image_size: Optional[tuple] = (608, 800),
+            image_size: Optional[tuple] = (384,384),
             num_classes: Optional[int] = None,
     ):
 
