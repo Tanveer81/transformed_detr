@@ -31,6 +31,7 @@ def get_args_parser():
     parser.add_argument('--pretrain_dir', default='/mnt/data/hannan/.cache/torch/checkpoints',
                         help='path where to save, empty for no saving')
     parser.add_argument('--random_image_size', default=False, type=bool)
+    parser.add_argument('--img_size', default=(608,800), type=tuple)
 
     parser.add_argument('--lr', default=1e-4, type=float)
     parser.add_argument('--lr_backbone', default=1e-5, type=float)
@@ -308,6 +309,8 @@ if __name__ == '__main__':
                                      parents=[get_args_parser()])
     args = parser.parse_args()
     print(args)
-    if args.output_dir:
-        Path(args.output_dir).mkdir(parents=True, exist_ok=True)
+    if not args.output_dir:  #create output dir as per experiment name
+        args.output_dir = './' + args.experiment_name
+    Path(args.output_dir).mkdir(parents=True, exist_ok=True)
+
     main(args)

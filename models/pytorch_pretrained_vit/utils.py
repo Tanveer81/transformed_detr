@@ -18,6 +18,8 @@ def load_pretrained_weights(
     resize_positional_embedding=False,
     verbose=True,
     strict=True,
+    old_img = None,
+    new_img = None
 ):
     """Loads pretrained weights from weights path or download using url.
     Args:
@@ -60,7 +62,7 @@ def load_pretrained_weights(
         posemb_new = model.state_dict()['positional_embedding.pos_embedding']
         state_dict['positional_embedding.pos_embedding'] = \
             resize_positional_embedding_(posemb=posemb, posemb_new=posemb_new, 
-                has_class_token=hasattr(model, 'class_token'))
+                has_class_token=hasattr(model, 'class_token'),gs_old = old_img, gs_new = new_img)
         maybe_print('Resized positional embeddings from {} to {}'.format(
                     posemb.shape, posemb_new.shape), verbose)
 
@@ -87,7 +89,7 @@ def as_tuple(x):
     return x if isinstance(x, tuple) else (x, x)
 
 
-def resize_positional_embedding_(posemb, posemb_new, has_class_token=True):
+def resize_positional_embedding_(posemb, posemb_new, has_class_token=True, gs_old=[24,24], gs_new=[38,50]):
     """Rescale the grid of position embeddings in a sensible manner"""
     from scipy.ndimage import zoom
 
@@ -100,17 +102,16 @@ def resize_positional_embedding_(posemb, posemb_new, has_class_token=True):
         posemb_tok, posemb_grid = posemb[:, :0], posemb[0]
 
     # Get old and new grid sizes
-    gs_old = int(np.sqrt(len(posemb_grid)))
-    gs_new = int(np.sqrt(ntok_new))
-    posemb_grid = posemb_grid.reshape(gs_old, gs_old, -1)
+    posemb_grid = posemb_grid.reshape(gs_old[0], gs_old[1], -1)
 
     # Rescale grid
-    zoom_factor = (gs_new / gs_old, gs_new / gs_old, 1)
+    zoom_factor = (gs_new[0] / gs_old[0], gs_new[1] / gs_old[1], 1)
     posemb_grid = zoom(posemb_grid, zoom_factor, order=1)
-    posemb_grid = posemb_grid.reshape(1, gs_new * gs_new, -1)
+    posemb_grid = posemb_grid.reshape(1, gs_new[0]*gs_new[1], -1)
     posemb_grid = torch.from_numpy(posemb_grid)
 
     # Deal with class token and return
     posemb = torch.cat([posemb_tok, posemb_grid], dim=1)
     return posemb
+
 

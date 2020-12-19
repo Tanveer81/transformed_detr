@@ -71,7 +71,7 @@ class ViT(nn.Module):
         # Configuration
         self.weight_path = weight_path
         self.detr_compatibility = detr_compatibility
-        self.position_embedding = position_embedding
+        self.position_embedding = position_embedding  #todo exp with learnd 2d embedding wd vit output
         if name is None:
             check_msg = 'must specify name of pretrained model'
             assert not pretrained, check_msg
@@ -125,7 +125,7 @@ class ViT(nn.Module):
         self.transformer = Transformer(num_layers=num_layers, dim=dim, num_heads=num_heads,
                                        ff_dim=ff_dim, dropout=dropout_rate)
 
-        # Representation layer
+        # todo not needed! Representation layer
         if representation_size and load_repr_layer:
             self.pre_logits = nn.Linear(dim, representation_size)
             pre_logits_size = representation_size
@@ -154,6 +154,8 @@ class ViT(nn.Module):
                 load_fc=(num_classes == pretrained_num_classes),
                 load_repr_layer=load_repr_layer,
                 resize_positional_embedding=(image_size != pretrained_image_size),
+                old_img = (pretrained_image_size[0]//fh, pretrained_image_size[1]//fw),   # original vit 384x384
+                new_img = (gh, gw),
             )
 
     @torch.no_grad()

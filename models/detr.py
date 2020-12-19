@@ -370,7 +370,8 @@ def build(args):
                                         pretrained=True,
                                         weight_path=f"{args.pretrain_dir}/{args.backbone}.pth",
                                         detr_compatibility=True,
-                                        position_embedding = args.position_embedding
+                                        position_embedding = args.position_embedding,
+                                       image_size = args.img_size,
                                         )
         # trasformer d_model
         args.hidden_dim = PRETRAINED_MODELS[args.backbone]['config']['dim']

@@ -170,7 +170,7 @@ def make_coco_transforms_ViT_2(image_set, height, width, max):
                 # T.RandomResize(scales, max_size=1333),
                 T.FixedResize((height, width), max),
                 T.Compose([
-                    T.RandomResize([400, 500, 600]),
+                    T.RandomResize(scales),
                     T.RandomSizeCrop(384, 600),
                     # T.RandomResize(scales, max_size=1333),
                     T.FixedResize((height, width), max),
@@ -208,7 +208,7 @@ def build(image_set, args):
             dataset = CocoDetection(img_folder, ann_file, transforms=make_coco_transforms(image_set), return_masks=args.masks)
         else:
             # dataset = CocoDetection(img_folder, ann_file, transforms=make_coco_transforms_ViT_2(image_set, PRETRAINED_MODELS[args.backbone]["image_size"][0]), return_masks=args.masks)
-            dataset = CocoDetection(img_folder, ann_file, transforms=make_coco_transforms_ViT_2(image_set, 384, 384, 800), return_masks=args.masks)
+            dataset = CocoDetection(img_folder, ann_file, transforms=make_coco_transforms_ViT_2(image_set, args.img_size[0],args.img_size[1], 800), return_masks=args.masks)  #todo change 800 hardcoded
     else:
         dataset = CocoDetection(img_folder, ann_file, transforms=make_coco_transforms(image_set), return_masks=args.masks)
 
