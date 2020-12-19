@@ -24,7 +24,8 @@ from models.pytorch_pretrained_vit.configs import PRETRAINED_MODELS
 class DETR(nn.Module):
     """ This is the DETR module that performs object detection """
 
-    def __init__(self, backbone_name, backbone, transformer, num_classes, num_queries, aux_loss=False):
+    def __init__(self, backbone_name, backbone, transformer, num_classes, num_queries,
+                 aux_loss=False):
         """ Initializes the model.
         Parameters:
             backbone: torch module of the backbone to be used. See backbone.py
@@ -90,7 +91,6 @@ class DETR(nn.Module):
         if self.aux_loss:
             out['aux_outputs'] = self._set_aux_loss(outputs_class, outputs_coord)
         return out
-
 
     @torch.jit.unused
     def _set_aux_loss(self, outputs_class, outputs_coord):
@@ -361,24 +361,28 @@ def build(args):
         args.backbone_name = "ViT"
         if args.overfit_one_batch:
             backbone = pre_trained_ViT(args.backbone,
-                                       pretrained=False,
+                                       pretrained=args.pretrained_vit,
                                        detr_compatibility=True,
-                                       position_embedding = args.position_embedding
+                                       position_embedding=args.position_embedding,
+                                       image_size=args.img_size,
+                                       num_heads=args.vit_heads,
+                                       num_layers=args.vit_layer,
                                        )
         else:
             backbone = pre_trained_ViT(args.backbone,
-                                        pretrained=True,
-                                        weight_path=f"{args.pretrain_dir}/{args.backbone}.pth",
-                                        detr_compatibility=True,
-                                        position_embedding = args.position_embedding,
-                                       image_size = args.img_size,
-                                        )
+                                       pretrained=args.pretrained_vit,
+                                       weight_path=f"{args.pretrain_dir}/{args.backbone}.pth",
+                                       detr_compatibility=True,
+                                       position_embedding=args.position_embedding,
+                                       image_size=args.img_size,
+                                       num_heads=args.vit_heads,
+                                       num_layers=args.vit_layer,
+                                       )
         # trasformer d_model
         args.hidden_dim = PRETRAINED_MODELS[args.backbone]['config']['dim']
     else:
         args.backbone_name = "resnet"
         backbone = build_backbone(args)
-
 
     transformer = build_transformer(args)
 

@@ -24,15 +24,20 @@ import wandb
 def get_args_parser():
     parser = argparse.ArgumentParser('Set transformer detector', add_help=False)
 
+    # ViT
     parser.add_argument('--experiment_name', default='train', type=str)
     parser.add_argument('--overfit_one_batch', default=False, type=bool)
+    parser.add_argument('--pretrained_vit', default=True, type=bool)
     parser.add_argument('--pretrained_model', default='B_16_imagenet1k', type=str,
                         help="ViT pre-trained model type")
     parser.add_argument('--pretrain_dir', default='/mnt/data/hannan/.cache/torch/checkpoints',
                         help='path where to save, empty for no saving')
     parser.add_argument('--random_image_size', default=False, type=bool)
-    parser.add_argument('--img_size', default=(608,800), type=tuple)
+    parser.add_argument('--img_size', default=(608, 800), type=tuple)
+    parser.add_argument('--vit_heads', default=12, type=int)
+    parser.add_argument('--vit_layer', default=12, type=int)
 
+    # Training
     parser.add_argument('--lr', default=1e-4, type=float)
     parser.add_argument('--lr_backbone', default=1e-5, type=float)
     parser.add_argument('--batch_size', default=2, type=int)

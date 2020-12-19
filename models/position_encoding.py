@@ -76,6 +76,34 @@ class PositionEmbeddingLearned(nn.Module):
         return pos
 
 
+class PositionEmbeddingLearned_2(nn.Module):
+    """
+    Absolute pos embedding, learned.
+    """
+    def __init__(self,  w, h, num_pos_feats=256):
+        super().__init__()
+        self.row_embed = nn.Embedding(50, num_pos_feats)
+        self.col_embed = nn.Embedding(50, num_pos_feats)
+        self.h = h
+        self.w = w
+        self.reset_parameters()
+
+    def reset_parameters(self):
+        nn.init.uniform_(self.row_embed.weight)
+        nn.init.uniform_(self.col_embed.weight)
+
+    def forward(self, x):
+        i = torch.arange(self.w, device=x.device)
+        j = torch.arange(self.h, device=x.device)
+        x_emb = self.col_embed(i)
+        y_emb = self.row_embed(j)
+        pos = torch.cat([
+            x_emb.unsqueeze(0).repeat(self.h, 1, 1),
+            y_emb.unsqueeze(1).repeat(1, self.w, 1),
+        ], dim=-1).reshape(self.h * self.w, -1).repeat(x.shape[0], 1, 1)
+
+        return pos
+    
 def build_position_encoding(args):
     N_steps = args.hidden_dim // 2
     if args.position_embedding in ('v2', 'sine'):
