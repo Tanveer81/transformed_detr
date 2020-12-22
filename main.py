@@ -361,6 +361,12 @@ def inference(args):
                 args.resume, map_location='cpu', check_hash=True)
         else:
             checkpoint = torch.load(args.resume, map_location='cpu')
+
+        for n in checkpoint['model'].copy().keys():
+            if n.startswith(('transformer.encoder')):  # or n.startswith('freq_bias')
+                del (checkpoint['model'][n])
+
+
         model_without_ddp.load_state_dict(checkpoint['model'])
         if not args.eval and 'optimizer' in checkpoint and 'lr_scheduler' in checkpoint and 'epoch' in checkpoint:
             optimizer.load_state_dict(checkpoint['optimizer'])
