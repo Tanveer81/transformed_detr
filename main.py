@@ -33,7 +33,8 @@ def get_args_parser():
     parser.add_argument('--pretrain_dir', default='/mnt/data/hannan/.cache/torch/checkpoints',
                         help='path where to save, empty for no saving')
     parser.add_argument('--random_image_size', default=False, type=bool)
-    parser.add_argument('--img_size', default=(608, 800), type=tuple)
+    parser.add_argument('--img_width', default=384, type=int)
+    parser.add_argument('--img_height', default=384, type=int)
     parser.add_argument('--vit_heads', default=12, type=int)
     parser.add_argument('--vit_layer', default=12, type=int)
 
@@ -373,6 +374,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser('DETR training and evaluation script',
                                      parents=[get_args_parser()])
     args = parser.parse_args()
+    args.img_size = (args.img_height, args.img_width)
     print(args)
     if not args.output_dir:  #create output dir as per experiment name
         args.output_dir = './' + args.experiment_name
