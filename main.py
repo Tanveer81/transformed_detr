@@ -27,7 +27,7 @@ def get_args_parser():
     # ViT
     parser.add_argument('--experiment_name', default='train', type=str)
     parser.add_argument('--overfit_one_batch', default=False, type=bool)
-    parser.add_argument('--pretrained_vit', default=True, type=bool)
+    parser.add_argument('--pretrained_vit', default=False, type=bool)
     parser.add_argument('--pretrained_model', default='B_16_imagenet1k', type=str,
                         help="ViT pre-trained model type")
     parser.add_argument('--pretrain_dir', default='/mnt/data/hannan/.cache/torch/checkpoints',
@@ -309,6 +309,66 @@ def main(args):
     # writer.close()
 
 
+def inference(args):
+    os.environ["CUDA_VISIBLE_DEVICES"] = "0,1,2,3"
+    utils.init_distributed_mode(args)
+    print("git:\n  {}\n".format(utils.get_sha()))
+
+    if args.frozen_weights is not None:
+        assert args.masks, "Frozen training is meant for segmentation only"
+    device = torch.device(args.device)
+
+    # fix the seed for reproducibility
+    seed = args.seed + utils.get_rank()
+    torch.manual_seed(seed)
+    np.random.seed(seed)
+    random.seed(seed)
+
+    model, criterion, postprocessors = build_model(args)
+
+    model.to(device)
+
+    model_without_ddp = model
+    if args.distributed:
+        model = torch.nn.parallel.DistributedDataParallel(model, device_ids=[args.gpu],
+                                                          find_unused_parameters=True)
+        model_without_ddp = model.module
+    n_parameters = sum(p.numel() for p in model.parameters() if p.requires_grad)
+    print('number of params:', n_parameters)
+
+    param_dicts = [
+        {"params": [p for n, p in model_without_ddp.named_parameters() if
+                    "backbone" not in n and p.requires_grad]},
+        {
+            "params": [p for n, p in model_without_ddp.named_parameters() if
+                       "backbone" in n and p.requires_grad],
+            "lr": args.lr_backbone,
+        },
+    ]
+    optimizer = torch.optim.AdamW(param_dicts, lr=args.lr,
+                                  weight_decay=args.weight_decay)
+    lr_scheduler = torch.optim.lr_scheduler.StepLR(optimizer, args.lr_drop)
+
+    if args.frozen_weights is not None:
+        checkpoint = torch.load(args.frozen_weights, map_location='cpu')
+        model_without_ddp.detr.load_state_dict(checkpoint['model'])
+
+    output_dir = Path(args.output_dir)
+    if args.resume:
+        if args.resume.startswith('https'):
+            checkpoint = torch.hub.load_state_dict_from_url(
+                args.resume, map_location='cpu', check_hash=True)
+        else:
+            checkpoint = torch.load(args.resume, map_location='cpu')
+        model_without_ddp.load_state_dict(checkpoint['model'])
+        if not args.eval and 'optimizer' in checkpoint and 'lr_scheduler' in checkpoint and 'epoch' in checkpoint:
+            optimizer.load_state_dict(checkpoint['optimizer'])
+            lr_scheduler.load_state_dict(checkpoint['lr_scheduler'])
+            args.start_epoch = checkpoint['epoch'] + 1
+
+    return model
+
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser('DETR training and evaluation script',
                                      parents=[get_args_parser()])
@@ -318,4 +378,6 @@ if __name__ == '__main__':
         args.output_dir = './' + args.experiment_name
     Path(args.output_dir).mkdir(parents=True, exist_ok=True)
 
-    main(args)
+    model = inference(args)
+    print(model)
+    print("done")
