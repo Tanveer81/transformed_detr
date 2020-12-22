@@ -16,17 +16,22 @@ from datasets import build_dataset, get_coco_api_from_dataset
 from engine import evaluate, train_one_epoch
 from models import build_model
 from tensorboardX import SummaryWriter
+from argparse import Namespace
+
 torch.multiprocessing.set_sharing_strategy('file_system')
 
+# --coco_path /nfs/data3/koner/data/mscoco --backbone B_16_imagenet1k --pretrain_dir
+# /nfs/data3/koner/data/checkpoints/vit_detr/ --num_workers 2 --batch_size 8 --resume
+# /mnt/data/hannan/detr-out/out/checkpoint.pth'
+# /mnt/data/hannan/.local/share/jupyter/runtime/kernel-07274f0d-50ee-4e42-8cf0-99022f376673.json
 
 def get_args_parser():
     parser = argparse.ArgumentParser('Set transformer detector', add_help=False)
-
     parser.add_argument('--experiment_name', default='train', type=str)
     parser.add_argument('--overfit_one_batch', default=False, type=bool)
     parser.add_argument('--pretrained_model', default='B_16_imagenet1k', type=str,
                         help="ViT pre-trained model type")
-    parser.add_argument('--pretrain_dir', default='/mnt/data/hannan/.cache/torch/checkpoints',
+    parser.add_argument('--pretrain_dir', default='/nfs/data3/koner/data/checkpoints/vit_detr/',
                         help='path where to save, empty for no saving')
 
     parser.add_argument('--lr', default=1e-4, type=float)
@@ -43,7 +48,7 @@ def get_args_parser():
     parser.add_argument('--frozen_weights', type=str, default=None,
                         help="Path to the pretrained model. If set, only the mask head will be trained")
     # * Backbone
-    parser.add_argument('--backbone', default='resnet50', type=str,
+    parser.add_argument('--backbone', default='B_16_imagenet1k', type=str,
                         help="Name of the convolutional backbone to use")
     parser.add_argument('--dilation', action='store_true',
                         help="If true, we replace stride with dilation in the last convolutional block (DC5)")
@@ -92,7 +97,7 @@ def get_args_parser():
 
     # dataset parameters
     parser.add_argument('--dataset_file', default='coco')
-    parser.add_argument('--coco_path', type=str)
+    parser.add_argument('--coco_path', default='/nfs/data3/koner/data/mscoco', type=str)
     parser.add_argument('--coco_panoptic_path', type=str)
     parser.add_argument('--remove_difficult', action='store_true')
 
@@ -102,7 +107,7 @@ def get_args_parser():
     parser.add_argument('--device', default='cuda',
                         help='device to use for training / testing')
     parser.add_argument('--seed', default=42, type=int)
-    parser.add_argument('--resume', default='', help='resume from checkpoint')
+    parser.add_argument('--resume', default='/mnt/data/hannan/detr-out/out/checkpoint.pth', help='resume from checkpoint')
     parser.add_argument('--start_epoch', default=0, type=int, metavar='N',
                         help='start epoch')
     parser.add_argument('--eval', action='store_true')
@@ -113,6 +118,7 @@ def get_args_parser():
                         help='number of distributed processes')
     parser.add_argument('--dist_url', default='env://',
                         help='url used to set up distributed training')
+
     return parser
 
 
@@ -275,8 +281,11 @@ def main(args):
     writer.close()
 
 
-def inference(args):
-    os.environ["CUDA_VISIBLE_DEVICES"] = "0,1,2,3"
+def inference():
+    parser = argparse.ArgumentParser('DETR training and evaluation script',
+                                     parents=[get_args_parser()])
+    args = vars(parser.parse_args([]))
+    args = Namespace(**args)
     utils.init_distributed_mode(args)
     print("git:\n  {}\n".format(utils.get_sha()))
 
@@ -331,7 +340,6 @@ def inference(args):
         #     if n.startswith(('transformer.encoder')):  # or n.startswith('freq_bias')
         #         del (checkpoint['model'][n])
 
-
         model_without_ddp.load_state_dict(checkpoint['model'])
         if not args.eval and 'optimizer' in checkpoint and 'lr_scheduler' in checkpoint and 'epoch' in checkpoint:
             optimizer.load_state_dict(checkpoint['optimizer'])
@@ -341,13 +349,19 @@ def inference(args):
     return model
 
 
+# --coco_path /nfs/data3/koner/data/mscoco --backbone B_16_imagenet1k --pretrain_dir
+# /nfs/data3/koner/data/checkpoints/vit_detr/ --num_workers 2 --batch_size 8 --resume
+# /mnt/data/hannan/detr-out/out/checkpoint.pth
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser('DETR training and evaluation script',
                                      parents=[get_args_parser()])
     args = parser.parse_args()
-    print(args)
-    if args.output_dir:
-        Path(args.output_dir).mkdir(parents=True, exist_ok=True)
-    model = inference(args)
+    # if args.output_dir:
+    #     Path(args.output_dir).mkdir(parents=True, exist_ok=True)
+    model = inference()
     print(model)
     print("done")
+
+
+
