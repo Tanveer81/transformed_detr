@@ -10,14 +10,13 @@ from torch.nn import functional as F
 from .transformer import Transformer
 from .utils import load_pretrained_weights, as_tuple
 from .configs import PRETRAINED_MODELS
-from ..position_encoding import PositionEmbeddingSine
+from positional_encodings import PositionalEncodingPermute2D
 
 
 class PositionalEmbedding1D(nn.Module):
     """Adds (optionally learned) positional embeddings to the inputs."""
 
-    def \
-            __init__(self, seq_len, dim):
+    def __init__(self, seq_len, dim):
         super().__init__()
         self.pos_embedding = nn.Parameter(torch.zeros(1, seq_len, dim))
 
@@ -71,7 +70,7 @@ class ViT(nn.Module):
         # Configuration
         self.weight_path = weight_path
         self.detr_compatibility = detr_compatibility
-        self.position_embedding = position_embedding  #todo exp with learnd 2d embedding wd vit output
+        self.position_embedding = position_embedding  # todo exp with learnd 2d embedding wd vit output
         if name is None:
             check_msg = 'must specify name of pretrained model'
             assert not pretrained, check_msg
@@ -118,6 +117,8 @@ class ViT(nn.Module):
         # Positional embedding
         if positional_embedding.lower() == '1d':
             self.positional_embedding = PositionalEmbedding1D(seq_len, dim)
+            self.positional_embedding_2d = PositionalEncodingPermute2D(dim)
+
         else:
             raise NotImplementedError()
 
@@ -154,8 +155,9 @@ class ViT(nn.Module):
                 load_fc=(num_classes == pretrained_num_classes),
                 load_repr_layer=load_repr_layer,
                 resize_positional_embedding=(image_size != pretrained_image_size),
-                old_img = (pretrained_image_size[0]//fh, pretrained_image_size[1]//fw),   # original vit 384x384
-                new_img = (gh, gw),
+                old_img=(pretrained_image_size[0] // fh, pretrained_image_size[1] // fw),
+                # original vit 384x384
+                new_img=(gh, gw),
             )
 
     @torch.no_grad()
@@ -191,13 +193,16 @@ class ViT(nn.Module):
             x = torch.cat((self.class_token.expand(b, -1, -1), x), dim=1)  # b,gh*gw+1,d
         if hasattr(self, 'positional_embedding'):
             x = self.positional_embedding(x)  # b,gh*gw+1,d
-        x = self.transformer(x)  # b,gh*gw+1,d
 
+        x = self.transformer(x)  # b,gh*gw+1,d
+        pos_embed_2d = self.positional_embedding_2d(x.unsqueeze(0)).squeeze(0)
+        x = x + pos_embed_2d
         if self.detr_compatibility:
             # if self.position_embedding == "sine":
             #     return x, PositionEmbeddingSine(self.dim/2, normalize=True)
             # else:
-            return x, self.positional_embedding.pos_embedding
+            # return x, self.positional_embedding.pos_embedding
+            return x, pos_embed_2d
 
         if hasattr(self, 'pre_logits'):
             x = self.pre_logits(x)

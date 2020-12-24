@@ -222,7 +222,7 @@ def main(args):
     # writer = SummaryWriter(comment=args.experiment_name)
 
     # tell wandb to get started
-    with wandb.init(project="vit-demo-1", config=args, dir="../"):
+    with wandb.init(project="vit-demo-2", config=args, dir="../"):
         print("Start training")
         # tell wandb to watch what the model gets up to: gradients, weights, and more!
         wandb.watch(model, criterion, log="all", log_freq=10)
@@ -386,6 +386,4 @@ if __name__ == '__main__':
         args.output_dir = './' + args.experiment_name
     Path(args.output_dir).mkdir(parents=True, exist_ok=True)
 
-    model = inference(args)
-    print(model)
-    print("done")
+    main(args)
