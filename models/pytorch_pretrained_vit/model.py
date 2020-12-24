@@ -23,7 +23,8 @@ class PositionalEmbedding1D(nn.Module):
 
     def forward(self, x):
         """Input has shape `(batch_size, seq_len, emb_dim)`"""
-        return x + self.pos_embedding
+        # removed class token
+        return x + self.pos_embedding[:,:,1:]
 
 
 class ViT(nn.Module):
@@ -113,8 +114,7 @@ class ViT(nn.Module):
         # Class token
         if classifier == 'token':
             self.class_token = nn.Parameter(torch.zeros(1, 1, dim))
-            # removed class token
-            # seq_len += 1
+            seq_len += 1
 
         # Positional embedding
         if positional_embedding.lower() == '1d':
