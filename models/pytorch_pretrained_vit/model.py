@@ -2,6 +2,7 @@
    They are built to mirror those in the official Jax implementation.
 """
 
+import math
 from typing import Optional
 import torch
 from torch import nn
@@ -112,7 +113,8 @@ class ViT(nn.Module):
         # Class token
         if classifier == 'token':
             self.class_token = nn.Parameter(torch.zeros(1, 1, dim))
-            seq_len += 1
+            # removed class token
+            # seq_len += 1
 
         # Positional embedding
         if positional_embedding.lower() == '1d':
@@ -189,13 +191,16 @@ class ViT(nn.Module):
         x = self.patch_embedding(x)  # b,d,gh,gw
         # x = self.AdaptiveAvgPool2d(x)
         x = x.flatten(2).transpose(1, 2)  # b,gh*gw,d
-        if hasattr(self, 'class_token'):
-            x = torch.cat((self.class_token.expand(b, -1, -1), x), dim=1)  # b,gh*gw+1,d
+
+        # Removed class  token for 2d embedding
+        # if hasattr(self, 'class_token'):
+        #     x = torch.cat((self.class_token.expand(b, -1, -1), x), dim=1)  # b,gh*gw+1,d
         if hasattr(self, 'positional_embedding'):
             x = self.positional_embedding(x)  # b,gh*gw+1,d
 
         x = self.transformer(x)  # b,gh*gw+1,d
-        pos_embed_2d = self.positional_embedding_2d(x.unsqueeze(0)).squeeze(0)
+        pos_embed_2d = self.positional_embedding_2d(x.permute(0, 2, 1)[:, :, :x.shape[1]].reshape(x.shape[0], x.shape[2], int(math.sqrt(x.shape[1])), int(math.sqrt(x.shape[1]))))
+        pos_embed_2d = pos_embed_2d.reshape([pos_embed_2d.shape[0], pos_embed_2d.shape[1], -1]).permute(0, 2, 1)
         x = x + pos_embed_2d
         if self.detr_compatibility:
             # if self.position_embedding == "sine":
