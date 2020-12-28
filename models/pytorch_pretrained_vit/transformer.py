@@ -97,6 +97,14 @@ class Transformer(nn.Module):
             Block(dim, num_heads, ff_dim, dropout) for _ in range(num_layers)])
 
     def forward(self, x, mask=None):
-        for block in self.blocks:
+        # Added residual connection from layer 3, 6 and 9
+        residual_connections = []
+        for i, block in zip(range(len(self.blocks)), self.blocks):
             x = block(x, mask)
+            if i in [2, 5, 8]:
+                residual_connections.append(x)
+
+        for residual in residual_connections:
+            x = x + residual
+
         return x
