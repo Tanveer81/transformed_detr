@@ -24,7 +24,7 @@ class PositionalEmbedding1D(nn.Module):
     def forward(self, x):
         """Input has shape `(batch_size, seq_len, emb_dim)`"""
         # removed class token
-        return x + self.pos_embedding[:,:,1:]
+        return x + self.pos_embedding[:,1:,:]
 
 
 class ViT(nn.Module):
