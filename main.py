@@ -22,6 +22,7 @@ import resource
 rlimit = resource.getrlimit(resource.RLIMIT_NOFILE)
 resource.setrlimit(resource.RLIMIT_NOFILE, (4096, rlimit[1]))
 import wandb
+from argparse import Namespace
 
 
 def get_args_parser():
@@ -60,8 +61,8 @@ def get_args_parser():
                         help="Name of the convolutional backbone to use")
     parser.add_argument('--dilation', action='store_true',
                         help="If true, we replace stride with dilation in the last convolutional block (DC5)")
-    parser.add_argument('--position_embedding', default='sine', type=str,
-                        choices=('sine', 'learned'),
+    parser.add_argument('--position_embedding', default='1d', type=str,
+                        choices=('1d', '2d', 'sine', 'learned'),
                         help="Type of positional embedding to use on top of the image features")
 
     # * Transformer
@@ -313,8 +314,12 @@ def main(args):
     # writer.close()
 
 
-def inference(args):
-    os.environ["CUDA_VISIBLE_DEVICES"] = "0,1,2,3"
+def inference(args=None):
+    if args==None:
+        parser = argparse.ArgumentParser('DETR training and evaluation script',
+                                         parents=[get_args_parser()])
+        args = vars(parser.parse_args([]))
+        args = Namespace(**args)
     utils.init_distributed_mode(args)
     print("git:\n  {}\n".format(utils.get_sha()))
 
@@ -369,7 +374,6 @@ def inference(args):
             if n.startswith(('transformer.encoder')):  # or n.startswith('freq_bias')
                 del (checkpoint['model'][n])
 
-
         model_without_ddp.load_state_dict(checkpoint['model'])
         if not args.eval and 'optimizer' in checkpoint and 'lr_scheduler' in checkpoint and 'epoch' in checkpoint:
             optimizer.load_state_dict(checkpoint['optimizer'])
@@ -377,6 +381,7 @@ def inference(args):
             args.start_epoch = checkpoint['epoch'] + 1
 
     return model
+
 
 
 if __name__ == '__main__':
@@ -389,4 +394,6 @@ if __name__ == '__main__':
         args.output_dir = './' + args.experiment_name
     Path(args.output_dir).mkdir(parents=True, exist_ok=True)
 
-    main(args)
+    model = inference(args)
+    print(model)
+    print("done")

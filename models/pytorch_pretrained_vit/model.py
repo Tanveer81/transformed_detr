@@ -117,12 +117,12 @@ class ViT(nn.Module):
             seq_len += 1
 
         # Positional embedding
+        self.positional_embedding_type = positional_embedding
         if positional_embedding.lower() == '1d':
             self.positional_embedding = PositionalEmbedding1D(seq_len, dim)
-            self.positional_embedding_2d = PositionalEncodingPermute2D(dim)
-
         else:
-            raise NotImplementedError()
+            self.positional_embedding = PositionalEmbedding1D(seq_len, dim)
+            self.positional_embedding_2d = PositionalEncodingPermute2D(dim)
 
         # Transformer
         self.transformer = Transformer(num_layers=num_layers, dim=dim, num_heads=num_heads,
@@ -199,14 +199,16 @@ class ViT(nn.Module):
             x = self.positional_embedding(x)  # b,gh*gw+1,d
 
         x = self.transformer(x)  # b,gh*gw+1,d
-        pos_embed_2d = self.positional_embedding_2d(x.permute(0, 2, 1)[:, :, :x.shape[1]].reshape(x.shape[0], x.shape[2], int(math.sqrt(x.shape[1])), int(math.sqrt(x.shape[1]))))
-        pos_embed_2d = pos_embed_2d.reshape([pos_embed_2d.shape[0], pos_embed_2d.shape[1], -1]).permute(0, 2, 1)
-        x = x + pos_embed_2d
+        if self.positional_embedding_type.lower() == '2d':
+            pos_embed_2d = self.positional_embedding_2d(x.permute(0, 2, 1)[:, :, :x.shape[1]].reshape(x.shape[0], x.shape[2], int(math.sqrt(x.shape[1])), int(math.sqrt(x.shape[1]))))
+            pos_embed_2d = pos_embed_2d.reshape([pos_embed_2d.shape[0], pos_embed_2d.shape[1], -1]).permute(0, 2, 1)
+            x = x + pos_embed_2d
         if self.detr_compatibility:
             # if self.position_embedding == "sine":
             #     return x, PositionEmbeddingSine(self.dim/2, normalize=True)
             # else:
-            # return x, self.positional_embedding.pos_embedding
+            if self.positional_embedding_type.lower() == '1d':
+                return x, self.positional_embedding.pos_embedding
             return x, pos_embed_2d
 
         if hasattr(self, 'pre_logits'):
