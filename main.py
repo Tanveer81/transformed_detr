@@ -17,10 +17,10 @@ from engine import evaluate, train_one_epoch
 from models import build_model
 # from tensorboardX import SummaryWriter
 
-#torch.multiprocessing.set_sharing_strategy('file_system')
-import resource
-rlimit = resource.getrlimit(resource.RLIMIT_NOFILE)
-resource.setrlimit(resource.RLIMIT_NOFILE, (4096, rlimit[1]))
+torch.multiprocessing.set_sharing_strategy('file_system')
+# import resource
+# rlimit = resource.getrlimit(resource.RLIMIT_NOFILE)
+# resource.setrlimit(resource.RLIMIT_NOFILE, (4096, rlimit[1]))
 import wandb
 from argparse import Namespace
 
@@ -113,7 +113,7 @@ def get_args_parser():
     parser.add_argument('--output_dir', default='',
                         help='path where to save, empty for no saving')
 
-    parser.add_argument('--device', default='cuda:1',
+    parser.add_argument('--device', default='cuda',
                         help='device to use for training / testing')
     parser.add_argument('--seed', default=42, type=int)
     parser.add_argument('--resume', default='', help='resume from checkpoint')
@@ -381,7 +381,6 @@ def inference(args=None):
             args.start_epoch = checkpoint['epoch'] + 1
 
     return model
-
 
 
 if __name__ == '__main__':

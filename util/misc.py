@@ -227,6 +227,7 @@ class MetricLogger(object):
                 eta_seconds = iter_time.global_avg * (len(iterable) - i)
                 eta_string = str(datetime.timedelta(seconds=int(eta_seconds)))
                 if torch.cuda.is_available():
+                    print('Time : ',time.asctime( time.localtime(time.time()) ))
                     print(log_msg.format(
                         i, len(iterable), eta=eta_string,
                         meters=str(self),
@@ -417,7 +418,6 @@ def init_distributed_mode(args):
         return
 
     args.distributed = True
-
     torch.cuda.set_device(args.gpu)
     args.dist_backend = 'nccl'
     print('| distributed init (rank {}): {}'.format(
