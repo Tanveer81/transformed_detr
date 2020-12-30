@@ -132,7 +132,7 @@ def get_args_parser():
 
 def main(args):
     wandb.login()
-    os.environ["CUDA_VISIBLE_DEVICES"] = "0,1,2,3"
+    os.environ["CUDA_VISIBLE_DEVICES"] = "0,1"
     utils.init_distributed_mode(args)
     print("git:\n  {}\n".format(utils.get_sha()))
 
@@ -226,59 +226,63 @@ def main(args):
     # writer = SummaryWriter(comment=args.experiment_name)
 
     # tell wandb to get started
-    with wandb.init(project="vit-demo-2", config=args, dir="../"):
-        print("Start training")
-        # tell wandb to watch what the model gets up to: gradients, weights, and more!
+    if os.environ.get("RANK", "0") == "0":
+        wandb.init(project="vit-demo-2", config=args, dir="../")
+
+    print("Start training")
+    # tell wandb to watch what the model gets up to: gradients, weights, and more!
+    if os.environ.get("RANK", "0") == "0":
         wandb.watch(model, criterion, log="all", log_freq=10)
-        start_time = time.time()
-        for epoch in range(args.start_epoch, args.epochs):
-            print(f"epoch:{epoch}")
-            if args.distributed:
-                sampler_train.set_epoch(epoch)
-            train_stats = train_one_epoch(
-                model, criterion, data_loader_train, optimizer, device, epoch,
-                args.clip_max_norm, args.overfit_one_batch, args.print_freq)
-            lr_scheduler.step()
+    start_time = time.time()
+    for epoch in range(args.start_epoch, args.epochs):
+        print(f"epoch:{epoch}")
+        if args.distributed:
+            sampler_train.set_epoch(epoch)
+        train_stats = train_one_epoch(
+            model, criterion, data_loader_train, optimizer, device, epoch,
+            args.clip_max_norm, args.overfit_one_batch, args.print_freq)
+        lr_scheduler.step()
 
-            if args.output_dir:
-                checkpoint_paths = [output_dir / 'checkpoint.pth']
-                # extra checkpoint before LR drop and every 100 epochs
-                if (epoch + 1) % args.lr_drop == 0 or (epoch + 1) % 100 == 0:
-                    checkpoint_paths.append(output_dir / f'checkpoint{epoch:04}.pth')
-                for checkpoint_path in checkpoint_paths:
-                    utils.save_on_master({
-                        'model': model_without_ddp.state_dict(),
-                        'optimizer': optimizer.state_dict(),
-                        'lr_scheduler': lr_scheduler.state_dict(),
-                        'epoch': epoch,
-                        'args': args,
-                    }, checkpoint_path)
+        if args.output_dir:
+            checkpoint_paths = [output_dir / 'checkpoint.pth']
+            # extra checkpoint before LR drop and every 100 epochs
+            if (epoch + 1) % args.lr_drop == 0 or (epoch + 1) % 100 == 0:
+                checkpoint_paths.append(output_dir / f'checkpoint{epoch:04}.pth')
+            for checkpoint_path in checkpoint_paths:
+                utils.save_on_master({
+                    'model': model_without_ddp.state_dict(),
+                    'optimizer': optimizer.state_dict(),
+                    'lr_scheduler': lr_scheduler.state_dict(),
+                    'epoch': epoch,
+                    'args': args,
+                }, checkpoint_path)
 
-            test_stats, coco_evaluator = evaluate(
-                model, criterion, postprocessors, data_loader_val, base_ds, device, args.output_dir,
-                args.overfit_one_batch
-            )
+        test_stats, coco_evaluator = evaluate(
+            model, criterion, postprocessors, data_loader_val, base_ds, device, args.output_dir,
+            args.overfit_one_batch
+        )
 
-            log_stats = {**{f'train_{k}': v for k, v in train_stats.items()},
-                         **{f'test_{k}': v for k, v in test_stats.items()},
-                         'epoch': epoch,
-                         'n_parameters': n_parameters}
+        log_stats = {**{f'train_{k}': v for k, v in train_stats.items()},
+                     **{f'test_{k}': v for k, v in test_stats.items()},
+                     'epoch': epoch,
+                     'n_parameters': n_parameters}
 
-            map_keys = [
-                'Average Precision  (AP) @[ IoU=0.50:0.95 | area=   all | maxDets=100 ]',
-                'Average Precision  (AP) @[ IoU=0.50      | area=   all | maxDets=100 ]',
-                'Average Precision  (AP) @[ IoU=0.75      | area=   all | maxDets=100 ]',
-                'Average Precision  (AP) @[ IoU=0.50:0.95 | area= small | maxDets=100 ]',
-                'Average Precision  (AP) @[ IoU=0.50:0.95 | area=medium | maxDets=100 ]',
-                'Average Precision  (AP) @[ IoU=0.50:0.95 | area= large | maxDets=100 ]',
-                'Average Recall     (AR) @[ IoU=0.50:0.95 | area=   all | maxDets=  1 ]',
-                'Average Recall     (AR) @[ IoU=0.50:0.95 | area=   all | maxDets= 10 ]',
-                'Average Recall     (AR) @[ IoU=0.50:0.95 | area=   all | maxDets=100 ]',
-                'Average Recall     (AR) @[ IoU=0.50:0.95 | area= small | maxDets=100 ]',
-                'Average Recall     (AR) @[ IoU=0.50:0.95 | area=medium | maxDets=100 ]',
-                'Average Recall     (AR) @[ IoU=0.50:0.95 | area= large | maxDets=100 ]',
-            ]
+        map_keys = [
+            'Average Precision  (AP) @[ IoU=0.50:0.95 | area=   all | maxDets=100 ]',
+            'Average Precision  (AP) @[ IoU=0.50      | area=   all | maxDets=100 ]',
+            'Average Precision  (AP) @[ IoU=0.75      | area=   all | maxDets=100 ]',
+            'Average Precision  (AP) @[ IoU=0.50:0.95 | area= small | maxDets=100 ]',
+            'Average Precision  (AP) @[ IoU=0.50:0.95 | area=medium | maxDets=100 ]',
+            'Average Precision  (AP) @[ IoU=0.50:0.95 | area= large | maxDets=100 ]',
+            'Average Recall     (AR) @[ IoU=0.50:0.95 | area=   all | maxDets=  1 ]',
+            'Average Recall     (AR) @[ IoU=0.50:0.95 | area=   all | maxDets= 10 ]',
+            'Average Recall     (AR) @[ IoU=0.50:0.95 | area=   all | maxDets=100 ]',
+            'Average Recall     (AR) @[ IoU=0.50:0.95 | area= small | maxDets=100 ]',
+            'Average Recall     (AR) @[ IoU=0.50:0.95 | area=medium | maxDets=100 ]',
+            'Average Recall     (AR) @[ IoU=0.50:0.95 | area= large | maxDets=100 ]',
+        ]
 
+        if os.environ.get("RANK", "0") == "0":
             for metric, iou in zip(map_keys, coco_evaluator.coco_eval['bbox'].stats.tolist()):
                 wandb.log({metric: iou, 'epoch': epoch})
 
@@ -292,20 +296,20 @@ def main(args):
                     # writer.add_scalar(f'test_{k}', v, epoch)
                     wandb.log({f'test_{k}': v, 'epoch': epoch})
 
-            if args.output_dir and utils.is_main_process():
-                with (output_dir / "log.txt").open("a") as f:
-                    f.write(json.dumps(log_stats) + "\n")
+        if args.output_dir and utils.is_main_process():
+            with (output_dir / "log.txt").open("a") as f:
+                f.write(json.dumps(log_stats) + "\n")
 
-                # for evaluation logs
-                if coco_evaluator is not None:
-                    (output_dir / 'eval').mkdir(exist_ok=True)
-                    if "bbox" in coco_evaluator.coco_eval:
-                        filenames = ['latest.pth']
-                        if epoch % 50 == 0:
-                            filenames.append(f'{epoch:03}.pth')
-                        for name in filenames:
-                            torch.save(coco_evaluator.coco_eval["bbox"].eval,
-                                       output_dir / "eval" / name)
+            # for evaluation logs
+            if coco_evaluator is not None:
+                (output_dir / 'eval').mkdir(exist_ok=True)
+                if "bbox" in coco_evaluator.coco_eval:
+                    filenames = ['latest.pth']
+                    if epoch % 50 == 0:
+                        filenames.append(f'{epoch:03}.pth')
+                    for name in filenames:
+                        torch.save(coco_evaluator.coco_eval["bbox"].eval,
+                                   output_dir / "eval" / name)
 
     total_time = time.time() - start_time
     total_time_str = str(datetime.timedelta(seconds=int(total_time)))
