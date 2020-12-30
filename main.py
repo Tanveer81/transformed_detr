@@ -392,7 +392,7 @@ if __name__ == '__main__':
     if not args.output_dir:  #create output dir as per experiment name
         args.output_dir = './' + args.experiment_name
     Path(args.output_dir).mkdir(parents=True, exist_ok=True)
-
-    model = inference(args)
-    print(model)
-    print("done")
+    main(args)
+    # model = inference(args)
+    # print(model)
+    # print("done")

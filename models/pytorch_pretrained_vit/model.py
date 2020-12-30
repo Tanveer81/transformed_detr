@@ -208,7 +208,7 @@ class ViT(nn.Module):
             #     return x, PositionEmbeddingSine(self.dim/2, normalize=True)
             # else:
             if self.positional_embedding_type.lower() == '1d':
-                return x, self.positional_embedding.pos_embedding
+                return x, self.positional_embedding.pos_embedding[:,1:,:]
             return x, pos_embed_2d
 
         if hasattr(self, 'pre_logits'):
