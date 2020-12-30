@@ -17,10 +17,10 @@ from engine import evaluate, train_one_epoch
 from models import build_model
 # from tensorboardX import SummaryWriter
 
-torch.multiprocessing.set_sharing_strategy('file_system')
-# import resource
-# rlimit = resource.getrlimit(resource.RLIMIT_NOFILE)
-# resource.setrlimit(resource.RLIMIT_NOFILE, (4096, rlimit[1]))
+#torch.multiprocessing.set_sharing_strategy('file_system')
+import resource
+rlimit = resource.getrlimit(resource.RLIMIT_NOFILE)
+resource.setrlimit(resource.RLIMIT_NOFILE, (4096, rlimit[1]))
 import wandb
 from argparse import Namespace
 
