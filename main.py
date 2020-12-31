@@ -30,20 +30,20 @@ def get_args_parser():
 
     # ViT
     parser.add_argument('--experiment_name', default='train', type=str)
-    parser.add_argument('--overfit_one_batch', default=False, type=bool)
+    parser.add_argument('--overfit_one_batch', default=False, action='store_true')
     parser.add_argument('--pretrained_vit', default=True, type=bool)
     parser.add_argument('--pretrained_model', default='B_16_imagenet1k', type=str,
                         help="ViT pre-trained model type")
     parser.add_argument('--pretrain_dir', default='/mnt/data/hannan/.cache/torch/checkpoints',
                         help='path where to save, empty for no saving')
-    parser.add_argument('--random_image_size', default=False, type=bool)
+    parser.add_argument('--random_image_size', default=False, action='store_true')
     parser.add_argument('--img_width', default=384, type=int)
     parser.add_argument('--img_height', default=384, type=int)
     parser.add_argument('--vit_heads', default=12, type=int)
     parser.add_argument('--vit_layer', default=12, type=int)
-    parser.add_argument('--include_class_token', default=True, type=bool)
-    parser.add_argument('--skip_connection', default=False, type=bool)
-    parser.add_argument('--hierarchy', default=False, type=bool)
+    parser.add_argument('--include_class_token', default=False, action='store_true')
+    parser.add_argument('--skip_connection', default=False, action='store_true')
+    parser.add_argument('--hierarchy', default=False, action='store_true')
 
     # Training
     parser.add_argument('--lr', default=1e-4, type=float)

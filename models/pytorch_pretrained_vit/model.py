@@ -71,12 +71,16 @@ class ViT(nn.Module):
             image_size: Optional[tuple] = (608, 800),
             num_classes: Optional[int] = None,
             include_class_token: bool = True,
-            skip_connection: bool = False
+            skip_connection: bool = False,
+            hierarchy: bool = False,
+            hierarchy_serial: int = None
     ):
 
         super().__init__()
 
         # Configuration
+        self.hierarchy_serial = hierarchy_serial
+        self.hierarchy = hierarchy
         self.include_class_token = include_class_token
         self.skip_connection = skip_connection
         self.weight_path = weight_path
@@ -114,6 +118,10 @@ class ViT(nn.Module):
         h, w = image_size  # image sizes
         fh, fw = as_tuple(patches)  # patch sizes
         gh, gw = h // fh, w // fw  # number of patches
+        self.fh = fh
+        self.fw = fw
+        self.gh = gh
+        self.gw = gw
         seq_len = gh * gw
 
         # Patch embedding
@@ -121,21 +129,23 @@ class ViT(nn.Module):
         # self.AdaptiveAvgPool2d = nn.AdaptiveAvgPool2d((gh, gw))
 
         # Class token
-        if classifier == 'token' and self.include_class_token:
+        if classifier == 'token':
             self.class_token = nn.Parameter(torch.zeros(1, 1, dim))
             seq_len += 1
 
         # Positional embedding
         self.positional_embedding_type = positional_embedding
         if positional_embedding.lower() == '1d':
-            self.positional_embedding = PositionalEmbedding1D(seq_len, dim)
+            self.positional_embedding = PositionalEmbedding1D(seq_len, dim, self.include_class_token)
         else:
-            self.positional_embedding = PositionalEmbedding1D(seq_len, dim)
+            self.positional_embedding = PositionalEmbedding1D(seq_len, dim, self.include_class_token)
             self.positional_embedding_2d = PositionalEncodingPermute2D(dim)
 
         # Transformer
         self.transformer = Transformer(num_layers=num_layers, dim=dim, num_heads=num_heads,
-                                       ff_dim=ff_dim, dropout=dropout_rate, skip_connection=self.skip_connection)
+                                       ff_dim=ff_dim, dropout=dropout_rate,
+                                       skip_connection=self.skip_connection,
+                                       hierarchy=self.hierarchy)
 
         # todo not needed! Representation layer
         if representation_size and load_repr_layer:
@@ -235,6 +245,8 @@ class ViT(nn.Module):
 
 class hierarchicalViT(nn.Module):
     def __init__(self, args):
+        super().__init__()
+        self.position_embedding = args.position_embedding
         self.backbone1 = ViT(args.backbone,
                        pretrained=args.pretrained_vit,
                        weight_path=f"{args.pretrain_dir}/{args.backbone}.pth",
@@ -244,7 +256,8 @@ class hierarchicalViT(nn.Module):
                        num_heads=args.vit_heads,
                        num_layers=args.vit_layer,
                        include_class_token=args.include_class_token,
-                       skip_connection=args.skip_connection
+                       skip_connection=args.skip_connection,
+                       hierarchy = args.hierarchy
                        )
 
         self.backbone2 = ViT(args.backbone,
@@ -256,16 +269,21 @@ class hierarchicalViT(nn.Module):
                        num_heads=args.vit_heads,
                        num_layers=args.vit_layer,
                        include_class_token=args.include_class_token,
-                       skip_connection=args.skip_connection
+                       skip_connection=args.skip_connection,
+                       hierarchy=args.hierarchy
                        )
 
-        self.AdaptiveAvgPool2d = nn.AdaptiveAvgPool2d((gh, gw))
+        self.AdaptiveAvgPool2d = nn.AdaptiveAvgPool2d((int(self.backbone1.gh/2), int(self.backbone1.gw/2)))
 
-        def forward(self, x):
-            x = self.backbone1(x)
-            x = make_2d(x)
-            x = self.AdaptiveAvgPool2d(x)
-            x = make_1d(x)
-            x = self.backbone2(x)
+    def hour_glass(self, x):
+        x = x.permute(0, 2, 1).reshape(x.shape[0], x.shape[2], self.backbone1.gh, self.backbone1.gw)
+        x = self.AdaptiveAvgPool2d(x)
+        x = x.flatten(2).transpose(1, 2)
+        return x
 
-            return x
+    def forward(self, x):
+        x = self.backbone1(x)
+        pos = self.hour_glass(x[1])
+        x = self.hour_glass(x[0])
+        x = self.backbone2.transformer(x)
+        return x, pos
