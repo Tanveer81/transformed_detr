@@ -135,7 +135,7 @@ class ViT(nn.Module):
 
         # Transformer
         self.transformer = Transformer(num_layers=num_layers, dim=dim, num_heads=num_heads,
-                                       ff_dim=ff_dim, dropout=dropout_rate)
+                                       ff_dim=ff_dim, dropout=dropout_rate, skip_connection=self.skip_connection)
 
         # todo not needed! Representation layer
         if representation_size and load_repr_layer:
