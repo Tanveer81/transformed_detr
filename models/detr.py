@@ -367,6 +367,8 @@ def build(args):
                                        image_size=args.img_size,
                                        num_heads=args.vit_heads,
                                        num_layers=args.vit_layer,
+                                       include_class_token = args.include_class_token,
+                                       skip_connection = args.skip_connection
                                        )
         else:
             backbone = pre_trained_ViT(args.backbone,
@@ -377,6 +379,8 @@ def build(args):
                                        image_size=args.img_size,
                                        num_heads=args.vit_heads,
                                        num_layers=args.vit_layer,
+                                       include_class_token=args.include_class_token,
+                                       skip_connection=args.skip_connection
                                        )
         # trasformer d_model
         args.hidden_dim = PRETRAINED_MODELS[args.backbone]['config']['dim']

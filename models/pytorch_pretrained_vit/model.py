@@ -17,14 +17,19 @@ from positional_encodings import PositionalEncodingPermute2D
 class PositionalEmbedding1D(nn.Module):
     """Adds (optionally learned) positional embeddings to the inputs."""
 
-    def __init__(self, seq_len, dim):
+    def __init__(self, seq_len, dim, include_class_token=True):
         super().__init__()
+        self.include_class_token = include_class_token
         self.pos_embedding = nn.Parameter(torch.zeros(1, seq_len, dim))
 
     def forward(self, x):
         """Input has shape `(batch_size, seq_len, emb_dim)`"""
-        # removed class token
-        return x + self.pos_embedding[:,1:,:]
+
+        if self.include_class_token:
+            return x + self.pos_embedding
+
+        # else removed class token
+        return x + self.pos_embedding[:, 1:, :]
 
 
 class ViT(nn.Module):
@@ -65,14 +70,18 @@ class ViT(nn.Module):
             in_channels: int = 3,
             image_size: Optional[tuple] = (608, 800),
             num_classes: Optional[int] = None,
+            include_class_token: bool = True,
+            skip_connection: bool = False
     ):
 
         super().__init__()
 
         # Configuration
+        self.include_class_token = include_class_token
+        self.skip_connection = skip_connection
         self.weight_path = weight_path
         self.detr_compatibility = detr_compatibility
-        self.position_embedding = position_embedding  # todo exp with learnd 2d embedding wd vit output
+        self.position_embedding = position_embedding
         if name is None:
             check_msg = 'must specify name of pretrained model'
             assert not pretrained, check_msg
@@ -112,7 +121,7 @@ class ViT(nn.Module):
         # self.AdaptiveAvgPool2d = nn.AdaptiveAvgPool2d((gh, gw))
 
         # Class token
-        if classifier == 'token':
+        if classifier == 'token' and self.include_class_token:
             self.class_token = nn.Parameter(torch.zeros(1, 1, dim))
             seq_len += 1
 
@@ -192,9 +201,8 @@ class ViT(nn.Module):
         # x = self.AdaptiveAvgPool2d(x)
         x = x.flatten(2).transpose(1, 2)  # b,gh*gw,d
 
-        # Removed class  token for 2d embedding
-        # if hasattr(self, 'class_token'):
-        #     x = torch.cat((self.class_token.expand(b, -1, -1), x), dim=1)  # b,gh*gw+1,d
+        if hasattr(self, 'class_token') and self.include_class_token:
+            x = torch.cat((self.class_token.expand(b, -1, -1), x), dim=1)  # b,gh*gw+1,d
         if hasattr(self, 'positional_embedding'):
             x = self.positional_embedding(x)  # b,gh*gw+1,d
 
@@ -203,12 +211,16 @@ class ViT(nn.Module):
             pos_embed_2d = self.positional_embedding_2d(x.permute(0, 2, 1)[:, :, :x.shape[1]].reshape(x.shape[0], x.shape[2], int(math.sqrt(x.shape[1])), int(math.sqrt(x.shape[1]))))
             pos_embed_2d = pos_embed_2d.reshape([pos_embed_2d.shape[0], pos_embed_2d.shape[1], -1]).permute(0, 2, 1)
             x = x + pos_embed_2d
+
         if self.detr_compatibility:
             # if self.position_embedding == "sine":
             #     return x, PositionEmbeddingSine(self.dim/2, normalize=True)
             # else:
             if self.positional_embedding_type.lower() == '1d':
-                return x, self.positional_embedding.pos_embedding[:,1:,:]
+                if self.include_class_token:
+                    return x, self.positional_embedding.pos_embedding
+                return x, self.positional_embedding.pos_embedding[:, 1:, :]
+
             return x, pos_embed_2d
 
         if hasattr(self, 'pre_logits'):

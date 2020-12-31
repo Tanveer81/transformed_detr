@@ -15,12 +15,12 @@ import util.misc as utils
 from datasets import build_dataset, get_coco_api_from_dataset
 from engine import evaluate, train_one_epoch
 from models import build_model
-# from tensorboardX import SummaryWriter
+from tensorboardX import SummaryWriter
 
-#torch.multiprocessing.set_sharing_strategy('file_system')
-import resource
-rlimit = resource.getrlimit(resource.RLIMIT_NOFILE)
-resource.setrlimit(resource.RLIMIT_NOFILE, (4096, rlimit[1]))
+torch.multiprocessing.set_sharing_strategy('file_system')
+# import resource
+# rlimit = resource.getrlimit(resource.RLIMIT_NOFILE)
+# resource.setrlimit(resource.RLIMIT_NOFILE, (4096, rlimit[1]))
 import wandb
 from argparse import Namespace
 
@@ -31,7 +31,7 @@ def get_args_parser():
     # ViT
     parser.add_argument('--experiment_name', default='train', type=str)
     parser.add_argument('--overfit_one_batch', default=False, type=bool)
-    parser.add_argument('--pretrained_vit', default=False, type=bool)
+    parser.add_argument('--pretrained_vit', default=True, type=bool)
     parser.add_argument('--pretrained_model', default='B_16_imagenet1k', type=str,
                         help="ViT pre-trained model type")
     parser.add_argument('--pretrain_dir', default='/mnt/data/hannan/.cache/torch/checkpoints',
@@ -41,6 +41,8 @@ def get_args_parser():
     parser.add_argument('--img_height', default=384, type=int)
     parser.add_argument('--vit_heads', default=12, type=int)
     parser.add_argument('--vit_layer', default=12, type=int)
+    parser.add_argument('--include_class_token', default=True, type=bool)
+    parser.add_argument('--skip_connection', default=False, type=bool)
 
     # Training
     parser.add_argument('--lr', default=1e-4, type=float)
@@ -131,8 +133,8 @@ def get_args_parser():
 
 
 def main(args):
-    wandb.login()
-    os.environ["CUDA_VISIBLE_DEVICES"] = "0,1"
+    # wandb.login()
+    os.environ["CUDA_VISIBLE_DEVICES"] = "0,1,2,3"
     utils.init_distributed_mode(args)
     print("git:\n  {}\n".format(utils.get_sha()))
 
@@ -223,16 +225,16 @@ def main(args):
         return
 
     # Create tensorboard writer
-    # writer = SummaryWriter(comment=args.experiment_name)
+    writer = SummaryWriter(comment=args.experiment_name)
 
     # tell wandb to get started
-    if os.environ.get("RANK", "0") == "0":
-        wandb.init(project="vit-demo-2", config=args, dir="../")
+    # if os.environ.get("RANK", "0") == "0":
+    #     wandb.init(project=args.experiment_name, config=args, dir="../")
 
     print("Start training")
     # tell wandb to watch what the model gets up to: gradients, weights, and more!
-    if os.environ.get("RANK", "0") == "0":
-        wandb.watch(model, criterion, log="all", log_freq=10)
+    # if os.environ.get("RANK", "0") == "0":
+    #     wandb.watch(model, criterion, log="all", log_freq=10)
     start_time = time.time()
     for epoch in range(args.start_epoch, args.epochs):
         print(f"epoch:{epoch}")
@@ -282,19 +284,19 @@ def main(args):
             'Average Recall     (AR) @[ IoU=0.50:0.95 | area= large | maxDets=100 ]',
         ]
 
-        if os.environ.get("RANK", "0") == "0":
-            for metric, iou in zip(map_keys, coco_evaluator.coco_eval['bbox'].stats.tolist()):
-                wandb.log({metric: iou, 'epoch': epoch})
+        # if os.environ.get("RANK", "0") == "0":
+        for metric, iou in zip(map_keys, coco_evaluator.coco_eval['bbox'].stats.tolist()):
+            writer.add_scalar(metric, iou, epoch)
+            # wandb.log({metric: iou, 'epoch': epoch})
 
-            # Log into Tensorboard
-            for k, v in train_stats.items():
-                if isinstance(v, float):
-                    # writer.add_scalar(f'train_{k}', v, epoch)
-                    wandb.log({f'train_{k}': v, 'epoch': epoch})
-            for k, v in test_stats.items():
-                if isinstance(v, float):
-                    # writer.add_scalar(f'test_{k}', v, epoch)
-                    wandb.log({f'test_{k}': v, 'epoch': epoch})
+        for k, v in train_stats.items():
+            if isinstance(v, float):
+                writer.add_scalar(f'train_{k}', v, epoch)
+                # wandb.log({f'train_{k}': v, 'epoch': epoch})
+        for k, v in test_stats.items():
+            if isinstance(v, float):
+                writer.add_scalar(f'test_{k}', v, epoch)
+                # wandb.log({f'test_{k}': v, 'epoch': epoch})
 
         if args.output_dir and utils.is_main_process():
             with (output_dir / "log.txt").open("a") as f:
@@ -315,7 +317,7 @@ def main(args):
     total_time_str = str(datetime.timedelta(seconds=int(total_time)))
     print('Training time {}'.format(total_time_str))
 
-    # writer.close()
+    writer.close()
 
 
 def inference(args=None):
