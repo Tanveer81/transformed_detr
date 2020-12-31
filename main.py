@@ -43,6 +43,7 @@ def get_args_parser():
     parser.add_argument('--vit_layer', default=12, type=int)
     parser.add_argument('--include_class_token', default=True, type=bool)
     parser.add_argument('--skip_connection', default=False, type=bool)
+    parser.add_argument('--hierarchy', default=False, type=bool)
 
     # Training
     parser.add_argument('--lr', default=1e-4, type=float)

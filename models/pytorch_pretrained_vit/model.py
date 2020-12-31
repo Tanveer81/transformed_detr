@@ -231,3 +231,41 @@ class ViT(nn.Module):
             x = self.fc(x)  # b,num_classes
 
         return x
+
+
+class hierarchicalViT(nn.Module):
+    def __init__(self, args):
+        self.backbone1 = ViT(args.backbone,
+                       pretrained=args.pretrained_vit,
+                       weight_path=f"{args.pretrain_dir}/{args.backbone}.pth",
+                       detr_compatibility=True,
+                       position_embedding=args.position_embedding,
+                       image_size=args.img_size,
+                       num_heads=args.vit_heads,
+                       num_layers=args.vit_layer,
+                       include_class_token=args.include_class_token,
+                       skip_connection=args.skip_connection
+                       )
+
+        self.backbone2 = ViT(args.backbone,
+                       pretrained=args.pretrained_vit,
+                       weight_path=f"{args.pretrain_dir}/{args.backbone}.pth",
+                       detr_compatibility=True,
+                       position_embedding=args.position_embedding,
+                       image_size=args.img_size,
+                       num_heads=args.vit_heads,
+                       num_layers=args.vit_layer,
+                       include_class_token=args.include_class_token,
+                       skip_connection=args.skip_connection
+                       )
+
+        self.AdaptiveAvgPool2d = nn.AdaptiveAvgPool2d((gh, gw))
+
+        def forward(self, x):
+            x = self.backbone1(x)
+            x = make_2d(x)
+            x = self.AdaptiveAvgPool2d(x)
+            x = make_1d(x)
+            x = self.backbone2(x)
+
+            return x

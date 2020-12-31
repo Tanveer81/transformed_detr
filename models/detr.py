@@ -342,7 +342,10 @@ def build(args):
         num_classes = 250
     device = torch.device(args.device)
 
-    if args.backbone == "ViT":
+    if args.hierarchy:
+        pass
+
+    elif args.backbone == "ViT":
         args.backbone_name = "ViT"
         backbone = ViT(
             patch_size=32,
