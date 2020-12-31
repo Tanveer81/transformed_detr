@@ -18,6 +18,7 @@ from .segmentation import (DETRsegm, PostProcessPanoptic, PostProcessSegm,
 from .transformer import build_transformer
 from models.pytorch_pretrained_vit.vit_pytorch_old import ViT
 from models.pytorch_pretrained_vit.model import ViT as pre_trained_ViT
+from models.pytorch_pretrained_vit.model import hierarchicalViT
 from models.pytorch_pretrained_vit.configs import PRETRAINED_MODELS
 
 
@@ -342,7 +343,13 @@ def build(args):
         num_classes = 250
     device = torch.device(args.device)
 
-    if args.backbone == "ViT":
+    if args.hierarchy:
+        args.backbone_name = "ViT"
+        backbone = hierarchicalViT(args)
+        # trasformer d_model
+        args.hidden_dim = PRETRAINED_MODELS[args.backbone]['config']['dim']
+
+    elif args.backbone == "ViT":
         args.backbone_name = "ViT"
         backbone = ViT(
             patch_size=32,

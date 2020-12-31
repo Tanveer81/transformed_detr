@@ -91,15 +91,23 @@ class Block(nn.Module):
 
 class Transformer(nn.Module):
     """Transformer with Self-Attentive Blocks"""
-    def __init__(self, num_layers, dim, num_heads, ff_dim, dropout, skip_connection=False):
+    def __init__(self, num_layers, dim, num_heads, ff_dim, dropout, skip_connection=False, hierarchy=False):
         super().__init__()
         self.skip_connection = skip_connection
+        self.hierarchy = hierarchy
         self.blocks = nn.ModuleList([
             Block(dim, num_heads, ff_dim, dropout) for _ in range(num_layers)])
 
     def forward(self, x, mask=None):
+        # Use only 6 layers for hierarchical structure
+        if self.hierarchy:
+            for i, block in zip(range(len(self.blocks)), self.blocks):
+                x = block(x, mask)
+                if i == 5:
+                    break
+
         # Added residual connection from layer 3, 6 and 9
-        if self.skip_connection:
+        elif self.skip_connection:
             residual_connections = []
             for i, block in zip(range(len(self.blocks)), self.blocks):
                 x = block(x, mask)
