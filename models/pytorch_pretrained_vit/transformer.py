@@ -1,8 +1,9 @@
 """
 Adapted from https://github.com/lukemelas/simple-bert
 """
- 
+
 import numpy as np
+import torch
 from torch import nn
 from torch import Tensor 
 from torch.nn import functional as F
@@ -91,20 +92,34 @@ class Block(nn.Module):
 
 class Transformer(nn.Module):
     """Transformer with Self-Attentive Blocks"""
-    def __init__(self, num_layers, dim, num_heads, ff_dim, dropout, skip_connection=False, hierarchy=False):
+    def __init__(self, num_layers, dim, num_heads, ff_dim, dropout, imsize, skip_connection=False, hierarchy=False):
         super().__init__()
         self.skip_connection = skip_connection
         self.hierarchy = hierarchy
         self.blocks = nn.ModuleList([
             Block(dim, num_heads, ff_dim, dropout) for _ in range(num_layers)])
+        self.norm = nn.LayerNorm(dim, eps=1e-6)
+        self.pool = nn.AvgPool2d(kernel_size=2, stride=2) #need to check kernel size
+        self.imsize = imsize
 
     def forward(self, x, mask=None):
         # Use only 6 layers for hierarchical structure
         if self.hierarchy:
             for i, block in zip(range(len(self.blocks)), self.blocks):
                 x = block(x, mask)
-                if i == 5:
-                    break
+#                 print('Block',i+1,'Min:', x.data.min().cpu().numpy(), 'Max', x.data.max().cpu().numpy())
+                if i==5:
+                    token = x[:,0:1,:]
+                    
+                    # @supro
+                    h, w = self.imsize
+                    h_=int(h/16)
+                    w_=int(w/16)
+#                     print('Image Size', (w, h))
+                    img = torch.reshape(x[:,1:,:].transpose(1,2), (token.shape[0], token.shape[2], w_, h_)).contiguous()
+#                     print(img.shape, x.shape)
+                    x = torch.reshape(self.pool(img), (token.shape[0], token.shape[2], -1)).transpose(1,2)
+                    x = torch.cat([token,x], 1).contiguous()
 
         # Added residual connection from layer 3, 6 and 9
         elif self.skip_connection:
@@ -116,10 +131,12 @@ class Transformer(nn.Module):
 
             for residual in residual_connections:
                 x = x + residual
+            x = self.norm(x)
 
         # No skip connection
         else:
             for block in self.blocks:
+#                 print('Min:', x.data.min().cpu().numpy(), 'Max', x.data.max().cpu().numpy())
                 x = block(x, mask)
 
         return x
