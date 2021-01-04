@@ -18,10 +18,10 @@ from models import build_model
 from tensorboardX import SummaryWriter
 
 torch.multiprocessing.set_sharing_strategy('file_system')
-# import resource
-# rlimit = resource.getrlimit(resource.RLIMIT_NOFILE)
-# resource.setrlimit(resource.RLIMIT_NOFILE, (4096, rlimit[1]))
-import wandb
+import resource
+rlimit = resource.getrlimit(resource.RLIMIT_NOFILE)
+resource.setrlimit(resource.RLIMIT_NOFILE, (4096, rlimit[1]))
+#import wandb
 from argparse import Namespace
 
 
@@ -113,6 +113,7 @@ def get_args_parser():
     parser.add_argument('--coco_panoptic_path', type=str)
     parser.add_argument('--remove_difficult', action='store_true')
 
+
     parser.add_argument('--output_dir', default='',
                         help='path where to save, empty for no saving')
 
@@ -135,7 +136,7 @@ def get_args_parser():
 
 def main(args):
     # wandb.login()
-    os.environ["CUDA_VISIBLE_DEVICES"] = "0,1,2,3"
+    os.environ["CUDA_VISIBLE_DEVICES"] = "3,5,6,7"#"0,1,2,3"
     utils.init_distributed_mode(args)
     print("git:\n  {}\n".format(utils.get_sha()))
 
@@ -173,6 +174,8 @@ def main(args):
     optimizer = torch.optim.AdamW(param_dicts, lr=args.lr,
                                   weight_decay=args.weight_decay)
     lr_scheduler = torch.optim.lr_scheduler.StepLR(optimizer, args.lr_drop)
+    # lr_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'max', patience=5, factor=0.1,
+    #                                verbose=True, threshold=0.0001, threshold_mode='abs', cooldown=1)
 
     dataset_train = build_dataset(image_set='train', args=args)
 
@@ -271,18 +274,18 @@ def main(args):
                      'n_parameters': n_parameters}
 
         map_keys = [
-            'Average Precision  (AP) @[ IoU=0.50:0.95 | area=   all | maxDets=100 ]',
-            'Average Precision  (AP) @[ IoU=0.50      | area=   all | maxDets=100 ]',
-            'Average Precision  (AP) @[ IoU=0.75      | area=   all | maxDets=100 ]',
-            'Average Precision  (AP) @[ IoU=0.50:0.95 | area= small | maxDets=100 ]',
-            'Average Precision  (AP) @[ IoU=0.50:0.95 | area=medium | maxDets=100 ]',
-            'Average Precision  (AP) @[ IoU=0.50:0.95 | area= large | maxDets=100 ]',
-            'Average Recall     (AR) @[ IoU=0.50:0.95 | area=   all | maxDets=  1 ]',
-            'Average Recall     (AR) @[ IoU=0.50:0.95 | area=   all | maxDets= 10 ]',
-            'Average Recall     (AR) @[ IoU=0.50:0.95 | area=   all | maxDets=100 ]',
-            'Average Recall     (AR) @[ IoU=0.50:0.95 | area= small | maxDets=100 ]',
-            'Average Recall     (AR) @[ IoU=0.50:0.95 | area=medium | maxDets=100 ]',
-            'Average Recall     (AR) @[ IoU=0.50:0.95 | area= large | maxDets=100 ]',
+            'AP_IoU=0.50:0.95_all_maxDets=100',
+            'AP_IoU=0.50_all_maxDets=100',
+            'AP_IoU=0.75_all_maxDets=100',
+            'AP_IoU=0.50:0.95_small_maxDets=100',
+            'AP_IoU=0.50:0.95_medium_maxDets=100',
+            'AP_IoU=0.50:0.95_large_maxDets=100',
+            'AR_IoU=0.50:0.95_all_maxDets=1',
+            'AR_IoU=0.50:0.95_all_maxDets=10',
+            'AR_IoU=0.50:0.95_all_maxDets=100',
+            'AR_IoU=0.50:0.95_small_maxDets=100',
+            'AR_IoU=0.50:0.95_medium_maxDets=100',
+            'AR_IoU=0.50:0.95_large_maxDets=100',
         ]
 
         # if os.environ.get("RANK", "0") == "0":

@@ -97,6 +97,8 @@ class Transformer(nn.Module):
         self.hierarchy = hierarchy
         self.blocks = nn.ModuleList([
             Block(dim, num_heads, ff_dim, dropout) for _ in range(num_layers)])
+        self.norm = nn.LayerNorm(dim, eps=1e-6)
+
 
     def forward(self, x, mask=None):
         # Use only 6 layers for hierarchical structure
@@ -122,4 +124,4 @@ class Transformer(nn.Module):
             for block in self.blocks:
                 x = block(x, mask)
 
-        return x
+        return self.norm(x)

@@ -17,7 +17,7 @@ def load_pretrained_weights(
     load_repr_layer=False,
     resize_positional_embedding=False,
     verbose=True,
-    strict=True,
+    strict=False,
     old_img = None,
     new_img = None
 ):
