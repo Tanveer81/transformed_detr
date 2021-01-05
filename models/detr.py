@@ -5,6 +5,7 @@ DETR model and criterion classes.
 import torch
 import torch.nn.functional as F
 from torch import nn
+import matplotlib.pyplot as plt
 
 from util import box_ops
 from util.misc import (NestedTensor, nested_tensor_from_tensor_list,
@@ -25,7 +26,7 @@ from models.pytorch_pretrained_vit.configs import PRETRAINED_MODELS
 class DETR(nn.Module):
     """ This is the DETR module that performs object detection """
 
-    def __init__(self, backbone_name, backbone, transformer, num_classes, num_queries,
+    def __init__(self, backbone_name, backbone, transformer, num_classes, num_queries,imsize,
                  aux_loss=False):
         """ Initializes the model.
         Parameters:
@@ -51,7 +52,8 @@ class DETR(nn.Module):
         self.backbone = backbone
         self.init = True
         self.aux_loss = aux_loss
-
+        self.imsize = imsize
+        self.pool = nn.MaxPool2d(kernel_size=2, stride=2)  # need to check kernel size
     def forward(self, samples: NestedTensor):
         """ The forward expects a NestedTensor, which consists of:
                - samples.tensor: batched images, of shape [batch_size x 3 x H x W]
@@ -74,6 +76,24 @@ class DETR(nn.Module):
             src, pos = self.backbone(samples)
             if self.backbone.position_embedding == "learned":
                 pos = pos.expand(src.shape[0], pos.shape[1], pos.shape[2])
+            # @supro
+            h, w = self.imsize
+            # print('POS Size', self.imsize)
+            h_ = int(h / 16)
+            w_ = int(w / 16)
+            # plt.figure(figsize=(5,20))
+            # plt.imshow(pos[0,:,:].data.cpu().numpy())
+            # plt.show()
+            token = pos[:, 0:1, :]
+            img = torch.reshape(pos[:, 1:, :].transpose(1, 2),(pos.shape[0], pos.shape[2], h_, w_)).contiguous()
+            pos = -torch.reshape(-self.pool(img), (pos.shape[0], pos.shape[2], -1)).transpose(1, 2)
+            # plt.figure(figsize=(5,5))
+            # plt.imshow(pos[0,:,:].data.cpu().numpy())
+            # plt.show()
+            pos = torch.cat([token, pos], 1).contiguous()
+            # pos = pos[:,::4,:][:,0:src.shape[1],:]
+            # print(pos.shape)
+
             # mask = torch.ones(src.shape[0], src.shape[2]).bool()
             mask = None
             # In case of ViT DETR transformer would not include encoder
@@ -366,7 +386,7 @@ def build(args):
 
     elif args.backbone in PRETRAINED_MODELS.keys():
         args.backbone_name = "ViT"
-        if args.overfit_one_batch:
+        if args.overfit_one_batch:  # todo sud be same function, not two seperate
             backbone = pre_trained_ViT(args.backbone,
                                        pretrained=args.pretrained_vit,
                                        detr_compatibility=True,
@@ -403,6 +423,7 @@ def build(args):
         transformer,
         num_classes=num_classes,
         num_queries=args.num_queries,
+        imsize=(args.img_width, args.img_height),
         aux_loss=args.aux_loss,
     )
     if args.masks:

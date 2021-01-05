@@ -72,7 +72,7 @@ class ViT(nn.Module):
             num_classes: Optional[int] = None,
             include_class_token: bool = True,
             skip_connection: bool = False,
-            hierarchy: bool = False,
+            hierarchy: bool = True,
             hierarchy_serial: int = None
     ):
 

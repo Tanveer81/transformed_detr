@@ -131,12 +131,10 @@ class Transformer(nn.Module):
 
             for residual in residual_connections:
                 x = x + residual
-            x = self.norm(x)
-
         # No skip connection
         else:
             for block in self.blocks:
 #                 print('Min:', x.data.min().cpu().numpy(), 'Max', x.data.max().cpu().numpy())
                 x = block(x, mask)
 
-        return x
+        return self.norm(x)
