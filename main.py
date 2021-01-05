@@ -124,6 +124,7 @@ def get_args_parser():
     parser.add_argument('--start_epoch', default=0, type=int, metavar='N',
                         help='start epoch')
     parser.add_argument('--eval', action='store_true')
+    parser.add_argument('--only_weight', action='store_true', help='used for coco trainined detector')
     parser.add_argument('--num_workers', default=2, type=int)
 
     # distributed training parameters
@@ -215,8 +216,8 @@ def main(args):
                 args.resume, map_location='cpu', check_hash=True)
         else:
             checkpoint = torch.load(args.resume, map_location='cpu')
-        model_without_ddp.load_state_dict(checkpoint['model'])
-        if not args.eval and 'optimizer' in checkpoint and 'lr_scheduler' in checkpoint and 'epoch' in checkpoint:
+        model_without_ddp.load_state_dict(checkpoint['model'],strict=False)
+        if not args.eval and 'optimizer' in checkpoint and 'lr_scheduler' in checkpoint and 'epoch' in checkpoint  and not args.only_weight:
             optimizer.load_state_dict(checkpoint['optimizer'])
             lr_scheduler.load_state_dict(checkpoint['lr_scheduler'])
             args.start_epoch = checkpoint['epoch'] + 1
@@ -399,8 +400,8 @@ if __name__ == '__main__':
     args = parser.parse_args()
     args.img_size = (args.img_height, args.img_width)
     print(args)
-    if not args.output_dir:  #create output dir as per experiment name
-        args.output_dir = './' + args.experiment_name
+    if not args.output_dir:  # create output dir as per experiment name in exp folder
+        args.output_dir = './exp/' + args.experiment_name
     Path(args.output_dir).mkdir(parents=True, exist_ok=True)
     main(args)
     # model = inference(args)
