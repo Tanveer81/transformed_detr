@@ -138,7 +138,7 @@ def get_args_parser():
 
 def main(args):
     # wandb.login()
-    os.environ["CUDA_VISIBLE_DEVICES"] = "0,1"#"0,1,2,3"
+    os.environ["CUDA_VISIBLE_DEVICES"] = "0,1,2,3"
     utils.init_distributed_mode(args)
     print("git:\n  {}\n".format(utils.get_sha()))
 
@@ -321,7 +321,9 @@ def main(args):
 
     total_time = time.time() - start_time
     total_time_str = str(datetime.timedelta(seconds=int(total_time)))
+    time_per_batch = total_time / args.print_freq
     print('Training time {}'.format(total_time_str))
+    print("\n{:.1f}mmaster_addr/epoch".format(len(train_loader) * time_per_batch / 60))
 
     writer.close()
 
