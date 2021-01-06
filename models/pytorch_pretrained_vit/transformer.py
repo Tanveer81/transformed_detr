@@ -133,7 +133,7 @@ class Transformer(nn.Module):
                     # w_ = int(w/16)
                     # img = torch.reshape(x[:, 1:, :].transpose(1, 2), (token.shape[0], token.shape[2], w_, h_)).contiguous()
                     # x = torch.reshape(self.pool(img), (token.shape[0], token.shape[2], -1)).transpose(1, 2)
-                    x = self.hour_glass(x)
+                    x = self.hour_glass(x[:, 1:, :])
 
                     if self.include_class_token:
                         x = torch.cat([token, x], 1).contiguous()

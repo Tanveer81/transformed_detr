@@ -76,7 +76,9 @@ class DETR(nn.Module):
         if self.ViT:
             src, pos = self.backbone(samples)
             if self.backbone.hierarchy:
-                pos = self.backbone.transformer.hour_glass(pos)
+                token = pos[:, 0:1, :]
+                pos = self.backbone.transformer.hour_glass(pos[:, 1:, :])
+                pos = torch.cat([token, pos], 1).contiguous()
             if self.backbone.position_embedding == "learned":
                 pos = pos.expand(src.shape[0], pos.shape[1], pos.shape[2])
 
