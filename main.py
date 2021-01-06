@@ -15,6 +15,8 @@ import util.misc as utils
 from datasets import build_dataset, get_coco_api_from_dataset
 from engine import evaluate, train_one_epoch
 from models import build_model
+from models.pytorch_pretrained_vit.configs import PRETRAINED_MODELS
+from models.pytorch_pretrained_vit.utils import resize_positional_embedding_, maybe_print
 from tensorboardX import SummaryWriter
 
 torch.multiprocessing.set_sharing_strategy('file_system')
@@ -138,7 +140,7 @@ def get_args_parser():
 
 def main(args):
     # wandb.login()
-    os.environ["CUDA_VISIBLE_DEVICES"] = "0,1,2,3"
+    os.environ["CUDA_VISIBLE_DEVICES"] = "0,1"
     utils.init_distributed_mode(args)
     print("git:\n  {}\n".format(utils.get_sha()))
 
@@ -217,7 +219,22 @@ def main(args):
                 args.resume, map_location='cpu', check_hash=True)
         else:
             checkpoint = torch.load(args.resume, map_location='cpu')
-        model_without_ddp.load_state_dict(checkpoint['model'],strict=False)
+            # If we want to transfer learn on new image size, we need to resize positional embedding of ViT
+            if args.backbone in PRETRAINED_MODELS.keys():
+                pretrained_image_size = PRETRAINED_MODELS[args.backbone]['image_size']
+                resize_positional_embedding = (args.img_size != pretrained_image_size)
+                if resize_positional_embedding:
+                    old_img = (pretrained_image_size[0] // model.backbone.fh, pretrained_image_size[1] // model.backbone.fw),
+                    new_img = (model.backbone.gh, model.backbone.gw)
+                    posemb = checkpoint['model']['backbone.positional_embedding.pos_embedding']
+                    posemb_new = model.state_dict()['backbone.positional_embedding.pos_embedding']
+                    checkpoint['model']['backbone.positional_embedding.pos_embedding'] = \
+                    resize_positional_embedding_(posemb=posemb, posemb_new=posemb_new,
+                                                 has_class_token=hasattr(model.backbone, 'class_token'),
+                                                 gs_old=old_img[0], gs_new=new_img)
+                    maybe_print('Resized positional embeddings from {} to {}'.format(
+                        posemb.shape, posemb_new.shape), True)
+        model_without_ddp.load_state_dict(checkpoint['model'], strict=False)
         if not args.eval and 'optimizer' in checkpoint and 'lr_scheduler' in checkpoint and 'epoch' in checkpoint  and not args.only_weight:
             optimizer.load_state_dict(checkpoint['optimizer'])
             lr_scheduler.load_state_dict(checkpoint['lr_scheduler'])

@@ -394,10 +394,10 @@ def build(args):
 
     elif args.backbone in PRETRAINED_MODELS.keys():
         args.backbone_name = "ViT"
-        weight_path = None if args.overfit_one_batch else f"{args.pretrain_dir}/{args.backbone}.pth"
+        weight_path = None if (args.overfit_one_batch or args.resume) else f"{args.pretrain_dir}/{args.backbone}.pth"
         backbone = ViT(args.backbone,
                         pretrained=args.pretrained_vit,
-                        weight_path=f"{args.pretrain_dir}/{args.backbone}.pth",
+                        weight_path=weight_path,
                         detr_compatibility=True,
                         position_embedding=args.position_embedding,
                         image_size=args.img_size,
