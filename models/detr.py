@@ -53,7 +53,7 @@ class DETR(nn.Module):
         self.init = True
         self.aux_loss = aux_loss
         self.imsize = imsize
-        self.pool = nn.MaxPool2d(kernel_size=2, stride=2)  # need to check kernel size
+        self.pool = nn.AvgPool2d(kernel_size=2, stride=2)  # need to check kernel size
     def forward(self, samples: NestedTensor):
         """ The forward expects a NestedTensor, which consists of:
                - samples.tensor: batched images, of shape [batch_size x 3 x H x W]
@@ -86,10 +86,10 @@ class DETR(nn.Module):
             # plt.show()
             token = pos[:, 0:1, :]
             img = torch.reshape(pos[:, 1:, :].transpose(1, 2),(pos.shape[0], pos.shape[2], h_, w_)).contiguous()
-            pos = -torch.reshape(-self.pool(img), (pos.shape[0], pos.shape[2], -1)).transpose(1, 2)
-            # plt.figure(figsize=(5,5))
-            # plt.imshow(pos[0,:,:].data.cpu().numpy())
-            # plt.show()
+            pos = torch.reshape(self.pool(img), (pos.shape[0], pos.shape[2], -1)).transpose(1, 2)
+            # # plt.figure(figsize=(5,5))
+            # # plt.imshow(pos[0,:,:].data.cpu().numpy())
+            # # plt.show()
             pos = torch.cat([token, pos], 1).contiguous()
             # pos = pos[:,::4,:][:,0:src.shape[1],:]
             # print(pos.shape)

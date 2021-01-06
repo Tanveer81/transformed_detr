@@ -240,7 +240,7 @@ class TransformerDecoderLayer(nn.Module):
         self.normalize_before = normalize_before
 
     def with_pos_embed(self, tensor, pos: Optional[Tensor]):
-        return tensor if pos is None else tensor + pos
+        return tensor if pos is None else tensor + pos #todo with no positional embedding for testing
 
     def forward_post(self, tgt, memory,
                      tgt_mask: Optional[Tensor] = None,
