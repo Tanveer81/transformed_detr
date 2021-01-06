@@ -28,7 +28,7 @@ from argparse import Namespace
 def get_args_parser():
     parser = argparse.ArgumentParser('Set transformer detector', add_help=False)
 
-    # ViT
+    # Transformed Detection Args
     parser.add_argument('--experiment_name', default='train', type=str)
     parser.add_argument('--overfit_one_batch', default=False, action='store_true')
     parser.add_argument('--pretrained_vit', default=True, type=bool)
@@ -44,6 +44,8 @@ def get_args_parser():
     parser.add_argument('--include_class_token', default=False, action='store_true')
     parser.add_argument('--skip_connection', default=False, action='store_true')
     parser.add_argument('--hierarchy', default=False, action='store_true')
+    parser.add_argument('--only_weight', action='store_true', help='used for coco trainined detector')
+    parser.add_argument('--pool', default='max', type=str, choices=('max', 'avg'))
 
     # Training
     parser.add_argument('--lr', default=1e-4, type=float)
@@ -124,7 +126,6 @@ def get_args_parser():
     parser.add_argument('--start_epoch', default=0, type=int, metavar='N',
                         help='start epoch')
     parser.add_argument('--eval', action='store_true')
-    parser.add_argument('--only_weight', action='store_true', help='used for coco trainined detector')
     parser.add_argument('--num_workers', default=2, type=int)
 
     # distributed training parameters
@@ -137,7 +138,7 @@ def get_args_parser():
 
 def main(args):
     # wandb.login()
-    os.environ["CUDA_VISIBLE_DEVICES"] = "3,5,6,7"#"0,1,2,3"
+    os.environ["CUDA_VISIBLE_DEVICES"] = "0,1"#"0,1,2,3"
     utils.init_distributed_mode(args)
     print("git:\n  {}\n".format(utils.get_sha()))
 
