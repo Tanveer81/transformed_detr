@@ -222,8 +222,7 @@ def main(args):
             # If we want to transfer learn on new image size, we need to resize positional embedding of ViT
             if args.backbone in PRETRAINED_MODELS.keys():
                 pretrained_image_size = PRETRAINED_MODELS[args.backbone]['image_size']
-                resize_positional_embedding = (args.img_size != pretrained_image_size)
-                if resize_positional_embedding:
+                if args.img_size != pretrained_image_size:
                     old_img = (pretrained_image_size[0] // model.backbone.fh, pretrained_image_size[1] // model.backbone.fw),
                     new_img = (model.backbone.gh, model.backbone.gw)
                     posemb = checkpoint['model']['backbone.positional_embedding.pos_embedding']
