@@ -17,9 +17,9 @@ from .matcher import build_matcher
 from .segmentation import (DETRsegm, PostProcessPanoptic, PostProcessSegm,
                            dice_loss, sigmoid_focal_loss)
 from .transformer import build_transformer
-from models.pytorch_pretrained_vit.vit_pytorch_old import ViT
-from models.pytorch_pretrained_vit.model import ViT as pre_trained_ViT
-from models.pytorch_pretrained_vit.model import hierarchicalViT
+from models.pytorch_pretrained_vit.vit_pytorch_old import ViT as old_ViT
+from models.pytorch_pretrained_vit.model import ViT
+# from models.pytorch_pretrained_vit.model import hierarchicalViT
 from models.pytorch_pretrained_vit.configs import PRETRAINED_MODELS
 
 
@@ -46,14 +46,15 @@ class DETR(nn.Module):
         self.query_embed = nn.Embedding(num_queries, hidden_dim)
         if backbone_name != "ViT" and backbone_name not in PRETRAINED_MODELS.keys():
             self.input_proj = nn.Conv2d(backbone.num_channels, hidden_dim, kernel_size=1)
-            self.vit = False
+            self.ViT = False
         else:
-            self.vit = True
+            self.ViT = True
         self.backbone = backbone
         self.init = True
         self.aux_loss = aux_loss
         self.imsize = imsize
-        self.pool = nn.AvgPool2d(kernel_size=2, stride=2)  # need to check kernel size
+
+
     def forward(self, samples: NestedTensor):
         """ The forward expects a NestedTensor, which consists of:
                - samples.tensor: batched images, of shape [batch_size x 3 x H x W]
@@ -72,28 +73,35 @@ class DETR(nn.Module):
         if isinstance(samples, (list, torch.Tensor)):
             samples = nested_tensor_from_tensor_list(samples)
 
-        if self.vit:
+        if self.ViT:
             src, pos = self.backbone(samples)
+            if self.backbone.hierarchy:
+                if self.backbone.include_class_token:
+                    token = pos[:, 0:1, :]
+                    pos = self.backbone.transformer.hour_glass(pos[:, 1:, :])
+                    pos = torch.cat([token, pos], 1).contiguous()
+                else:
+                    pos = self.backbone.transformer.hour_glass(pos)
             if self.backbone.position_embedding == "learned":
                 pos = pos.expand(src.shape[0], pos.shape[1], pos.shape[2])
+
             # @supro
-            h, w = self.imsize
-            # print('POS Size', self.imsize)
-            h_ = int(h / 16)
-            w_ = int(w / 16)
-            # plt.figure(figsize=(5,20))
-            # plt.imshow(pos[0,:,:].data.cpu().numpy())
-            # plt.show()
-            token = pos[:, 0:1, :]
-            img = torch.reshape(pos[:, 1:, :].transpose(1, 2),(pos.shape[0], pos.shape[2], h_, w_)).contiguous()
-            pos = torch.reshape(self.pool(img), (pos.shape[0], pos.shape[2], -1)).transpose(1, 2)
+            # h, w = self.imsize
+            # # print('POS Size', self.imsize)
+            # h_ = int(h / 16)
+            # w_ = int(w / 16)
+            # # plt.figure(figsize=(5,20))
+            # # plt.imshow(pos[0,:,:].data.cpu().numpy())
+            # # plt.show()
+            # token = pos[:, 0:1, :]
+            # img = torch.reshape(pos[:, 1:, :].transpose(1, 2),(pos.shape[0], pos.shape[2], h_, w_)).contiguous()
+            # pos = -torch.reshape(-self.pool(img), (pos.shape[0], pos.shape[2], -1)).transpose(1, 2)
             # # plt.figure(figsize=(5,5))
             # # plt.imshow(pos[0,:,:].data.cpu().numpy())
             # # plt.show()
-            pos = torch.cat([token, pos], 1).contiguous()
-            # pos = pos[:,::4,:][:,0:src.shape[1],:]
-            # print(pos.shape)
-
+            # pos = torch.cat([token, pos], 1).contiguous()
+            # # pos = pos[:,::4,:][:,0:src.shape[1],:]
+            # # print(pos.shape)
             # mask = torch.ones(src.shape[0], src.shape[2]).bool()
             mask = None
             # In case of ViT DETR transformer would not include encoder
@@ -363,15 +371,15 @@ def build(args):
         num_classes = 250
     device = torch.device(args.device)
 
-    if args.hierarchy:
-        args.backbone_name = "ViT"
-        backbone = hierarchicalViT(args)
-        # trasformer d_model
-        args.hidden_dim = PRETRAINED_MODELS[args.backbone]['config']['dim']
+    # if args.hierarchy:
+    #     args.backbone_name = "ViT"
+    #     backbone = hierarchicalViT(args)
+    #     # trasformer d_model
+    #     args.hidden_dim = PRETRAINED_MODELS[args.backbone]['config']['dim']
 
-    elif args.backbone == "ViT":
+    if args.backbone == "ViT":
         args.backbone_name = "ViT"
-        backbone = ViT(
+        backbone = old_ViT(
             patch_size=32,
             # num_classes = 1,
             # dim, Last dimension of output tensor after linear transformation
@@ -386,29 +394,20 @@ def build(args):
 
     elif args.backbone in PRETRAINED_MODELS.keys():
         args.backbone_name = "ViT"
-        if args.overfit_one_batch:  # todo sud be same function, not two seperate
-            backbone = pre_trained_ViT(args.backbone,
-                                       pretrained=args.pretrained_vit,
-                                       detr_compatibility=True,
-                                       position_embedding=args.position_embedding,
-                                       image_size=args.img_size,
-                                       num_heads=args.vit_heads,
-                                       num_layers=args.vit_layer,
-                                       include_class_token = args.include_class_token,
-                                       skip_connection = args.skip_connection
-                                       )
-        else:
-            backbone = pre_trained_ViT(args.backbone,
-                                       pretrained=args.pretrained_vit,
-                                       weight_path=f"{args.pretrain_dir}/{args.backbone}.pth",
-                                       detr_compatibility=True,
-                                       position_embedding=args.position_embedding,
-                                       image_size=args.img_size,
-                                       num_heads=args.vit_heads,
-                                       num_layers=args.vit_layer,
-                                       include_class_token=args.include_class_token,
-                                       skip_connection=args.skip_connection
-                                       )
+        weight_path = None if args.overfit_one_batch else f"{args.pretrain_dir}/{args.backbone}.pth"
+        backbone = ViT(args.backbone,
+                        pretrained=args.pretrained_vit,
+                        weight_path=f"{args.pretrain_dir}/{args.backbone}.pth",
+                        detr_compatibility=True,
+                        position_embedding=args.position_embedding,
+                        image_size=args.img_size,
+                        num_heads=args.vit_heads,
+                        num_layers=args.vit_layer,
+                        include_class_token=args.include_class_token,
+                        skip_connection=args.skip_connection,
+                        hierarchy = args.hierarchy,
+                        pool = args.pool
+                       )
         # trasformer d_model
         args.hidden_dim = PRETRAINED_MODELS[args.backbone]['config']['dim']
     else:

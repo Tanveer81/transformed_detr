@@ -92,15 +92,32 @@ class Block(nn.Module):
 
 class Transformer(nn.Module):
     """Transformer with Self-Attentive Blocks"""
-    def __init__(self, num_layers, dim, num_heads, ff_dim, dropout, imsize, skip_connection=False, hierarchy=False):
+    def __init__(self, num_layers, dim, num_heads, ff_dim, dropout, imsize, skip_connection=False, include_class_token=True, hierarchy=False, pool=None, fh=None, fw=None, gh=None, gw=None):
         super().__init__()
-        self.skip_connection = skip_connection
+        self.gh = gh
+        self.gw = gw
+        self.fh = fh
+        self.fw = fw
+        self.pool = pool
         self.hierarchy = hierarchy
+        self.include_class_token = include_class_token
+        self.skip_connection = skip_connection
         self.blocks = nn.ModuleList([
             Block(dim, num_heads, ff_dim, dropout) for _ in range(num_layers)])
         self.norm = nn.LayerNorm(dim, eps=1e-6)
-        self.pool = nn.AvgPool2d(kernel_size=2, stride=2) #need to check kernel size
+        if self.pool == 'avg':
+            self.pool = nn.AvgPool2d(kernel_size=(self.fh, self.fw), stride=(self.fh, self.fw))
+        elif self.pool == 'max':
+            self.pool = nn.MaxPool2d(kernel_size=(self.fh, self.fw), stride=(self.fh, self.fw))
         self.imsize = imsize
+
+    def hour_glass(self, x):
+        # x = x.permute(0, 2, 1).reshape(x.shape[0], x.shape[2], self.gh, self.gw)
+        # x = self.pool(x)
+        # x = x.flatten(2).transpose(1, 2)
+        x = torch.reshape(x.transpose(1, 2), (x.shape[0], x.shape[2], self.gh, self.gw)).contiguous()
+        x = torch.reshape(self.pool(x), (x.shape[0], x.shape[2], -1)).transpose(1, 2)
+        return x
 
     def forward(self, x, mask=None):
         # Use only 6 layers for hierarchical structure
@@ -108,18 +125,21 @@ class Transformer(nn.Module):
             for i, block in zip(range(len(self.blocks)), self.blocks):
                 x = block(x, mask)
 #                 print('Block',i+1,'Min:', x.data.min().cpu().numpy(), 'Max', x.data.max().cpu().numpy())
-                if i==5:
-                    token = x[:,0:1,:]
-                    
+                if i == 5:
+                    if self.include_class_token:
+                        token = x[:, 0:1, :]
+                        x = self.hour_glass(x[:, 1:, :])
+                        x = torch.cat([token, x], 1).contiguous()
+                    else:
+                        x = self.hour_glass(x)
+
                     # @supro
-                    h, w = self.imsize
-                    h_=int(h/16)
-                    w_=int(w/16)
-#                     print('Image Size', (w, h))
-                    img = torch.reshape(x[:,1:,:].transpose(1,2), (token.shape[0], token.shape[2], w_, h_)).contiguous()
-#                     print(img.shape, x.shape)
-                    x = torch.reshape(self.pool(img), (token.shape[0], token.shape[2], -1)).transpose(1,2)
-                    x = torch.cat([token,x], 1).contiguous()
+                    # h, w = self.imsize
+                    # h_ = int(h/16)
+                    # w_ = int(w/16)
+                    # img = torch.reshape(x[:, 1:, :].transpose(1, 2), (token.shape[0], token.shape[2], w_, h_)).contiguous()
+                    # x = torch.reshape(self.pool(img), (token.shape[0], token.shape[2], -1)).transpose(1, 2)
+
 
         # Added residual connection from layer 3, 6 and 9
         elif self.skip_connection:

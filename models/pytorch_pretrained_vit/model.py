@@ -72,14 +72,14 @@ class ViT(nn.Module):
             num_classes: Optional[int] = None,
             include_class_token: bool = True,
             skip_connection: bool = False,
-            hierarchy: bool = True, #todo why these two ?
-            hierarchy_serial: int = None
+            hierarchy: bool = False,
+            pool: str = None
     ):
 
         super().__init__()
 
         # Configuration
-        self.hierarchy_serial = hierarchy_serial
+        self.pool = pool
         self.hierarchy = hierarchy
         self.include_class_token = include_class_token
         self.skip_connection = skip_connection
@@ -146,7 +146,8 @@ class ViT(nn.Module):
                                        ff_dim=ff_dim, dropout=dropout_rate,
                                        skip_connection=self.skip_connection,
                                        imsize=image_size,
-                                       hierarchy=self.hierarchy)
+                                       include_class_token=self.include_class_token,
+                                       hierarchy=self.hierarchy, pool=self.pool, fh=self.fh, fw=self.fw, gh=self.gh, gw=self.gw)
 
         # todo not needed! Representation layer
         if representation_size and load_repr_layer:
@@ -243,7 +244,7 @@ class ViT(nn.Module):
 
         return x
 
-
+'''
 class hierarchicalViT(nn.Module):
     def __init__(self, args):
         super().__init__()
@@ -288,3 +289,4 @@ class hierarchicalViT(nn.Module):
         x = self.hour_glass(x[0])
         x = self.backbone2.transformer(x)
         return x, pos
+'''
