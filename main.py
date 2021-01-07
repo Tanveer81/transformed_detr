@@ -223,10 +223,10 @@ def main(args):
             if args.backbone in PRETRAINED_MODELS.keys():
                 pretrained_image_size = PRETRAINED_MODELS[args.backbone]['image_size']
                 if args.img_size != pretrained_image_size:
-                    old_img = (pretrained_image_size[0] // model.backbone.fh, pretrained_image_size[1] // model.backbone.fw),
-                    new_img = (model.backbone.gh, model.backbone.gw)
+                    old_img = (pretrained_image_size[0] // model_without_ddp.backbone.fh, pretrained_image_size[1] // model_without_ddp.backbone.fw),
+                    new_img = (model_without_ddp.backbone.gh, model_without_ddp.backbone.gw)
                     posemb = checkpoint['model']['backbone.positional_embedding.pos_embedding']
-                    posemb_new = model.state_dict()['backbone.positional_embedding.pos_embedding']
+                    posemb_new = model_without_ddp.state_dict()['backbone.positional_embedding.pos_embedding']
                     checkpoint['model']['backbone.positional_embedding.pos_embedding'] = \
                     resize_positional_embedding_(posemb=posemb, posemb_new=posemb_new,
                                                  has_class_token=hasattr(model.backbone, 'class_token'),
