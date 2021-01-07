@@ -339,7 +339,7 @@ def main(args):
     total_time_str = str(datetime.timedelta(seconds=int(total_time)))
     time_per_batch = total_time / args.print_freq
     print('Training time {}'.format(total_time_str))
-    print("\n{:.1f}mmaster_addr/epoch".format(len(train_loader) * time_per_batch / 60))
+    print("\n{:.1f}mmaster_addr/epoch".format(len(data_loader_train) * time_per_batch / 60))
 
     writer.close()
 
