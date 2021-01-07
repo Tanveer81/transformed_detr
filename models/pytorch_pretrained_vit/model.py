@@ -234,7 +234,7 @@ class ViT(nn.Module):
             # else:
             if self.positional_embedding_type.lower() == '1d':
                 if self.include_class_token:
-                    return x, c
+                    return x, self.positional_embedding.pos_embedding
                 return x, self.positional_embedding.pos_embedding[:, 1:, :]
 
             return x, pos_embed_2d
