@@ -109,20 +109,20 @@ class Transformer(nn.Module):
             self.norm_layer.append(nn.LayerNorm(dim, eps=1e-6))
         self.norm = nn.LayerNorm(dim, eps=1e-6)
         if self.pool == 'avg':
-            self.pool = nn.AvgPool2d(kernel_size=(self.fh, self.fw), stride=(self.fh, self.fw))
+            self.pool = nn.AvgPool2d(kernel_size=(2, 2), stride=(2, 2))
         elif self.pool == 'max':
-            self.pool = nn.MaxPool2d(kernel_size=(self.fh, self.fw), stride=(self.fh, self.fw))
+            self.pool = nn.MaxPool2d(kernel_size=(2, 2), stride=(2, 2))
         self.imsize = imsize
 
     def hour_glass(self, x):
-        # x = x.permute(0, 2, 1).reshape(x.shape[0], x.shape[2], self.gh, self.gw)
-        # x = self.pool(x)
-        # x = x.flatten(2).transpose(1, 2)
-        x = torch.reshape(x.transpose(1, 2), (x.shape[0], x.shape[2], self.gh, self.gw)).contiguous()
-        x = torch.reshape(self.pool(x), (x.shape[0], x.shape[2], -1)).transpose(1, 2)
+        x = x.permute(0, 2, 1).reshape(x.shape[0], x.shape[2], self.gh, self.gw)
+        x = self.pool(x)
+        x = x.flatten(2).transpose(1, 2)
+        # x = torch.reshape(x.transpose(1, 2), (x.shape[0], x.shape[2], self.gh, self.gw)).contiguous()
+        # x = torch.reshape(self.pool(x), (x.shape[0], x.shape[2], -1)).transpose(1, 2)
         return x
 
-    def forward(self, x, mask=None):
+    def forward(self, x, pos, mask=None):
         # Use only 6 layers for hierarchical structure
         if self.hierarchy:
             residual_connections = []
@@ -148,8 +148,14 @@ class Transformer(nn.Module):
                         token = x[:, 0:1, :]
                         x = self.hour_glass(x[:, 1:, :])
                         x = torch.cat([token, x], 1).contiguous()
+                        # pos
+                        token = pos[:, 0:1, :]
+                        pos = self.hour_glass(pos[:, 1:, :])
+                        pos = torch.cat([token, pos], 1).contiguous()
                     else:
                         x = self.hour_glass(x)
+                        pos = self.hour_glass(pos)
+                    x = x + pos
 
             # add skip connections with a pre-norm
             x = self.norm_layer[-1](residual)

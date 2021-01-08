@@ -218,7 +218,11 @@ class ViT(nn.Module):
         if hasattr(self, 'positional_embedding'):
             x = self.positional_embedding(x)  # b,gh*gw+1,d
 
-        x = self.transformer(x)  # b,gh*gw+1,d
+        if hasattr(self, 'class_token') and self.include_class_token:
+            pos = self.positional_embedding.pos_embedding
+        else:
+            pos = self.positional_embedding.pos_embedding[:, 1:, :]
+        x = self.transformer(x, pos)  # b,gh*gw+1,d
         if self.positional_embedding_type.lower() == '2d':
             pos_embed_2d = self.positional_embedding_2d(x.permute(0, 2, 1)[:, :, :x.shape[1]].reshape(x.shape[0], x.shape[2], int(math.sqrt(x.shape[1])), int(math.sqrt(x.shape[1]))))
             pos_embed_2d = pos_embed_2d.reshape([pos_embed_2d.shape[0], pos_embed_2d.shape[1], -1]).permute(0, 2, 1)
