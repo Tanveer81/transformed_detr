@@ -11,7 +11,7 @@ from torch.nn import functional as F
 from .transformer import Transformer
 from .utils import load_pretrained_weights, as_tuple
 from .configs import PRETRAINED_MODELS
-from positional_encodings import PositionalEncodingPermute2D
+# from positional_encodings import PositionalEncodingPermute2D
 
 
 class PositionalEmbedding1D(nn.Module):

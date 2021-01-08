@@ -104,6 +104,9 @@ class Transformer(nn.Module):
         self.skip_connection = skip_connection
         self.blocks = nn.ModuleList([
             Block(dim, num_heads, ff_dim, dropout) for _ in range(num_layers)])
+        self.norm_layer = []
+        for i in range(4):
+            self.norm_layer.append(nn.LayerNorm(dim, eps=1e-6))
         self.norm = nn.LayerNorm(dim, eps=1e-6)
         if self.pool == 'avg':
             self.pool = nn.AvgPool2d(kernel_size=(self.fh, self.fw), stride=(self.fh, self.fw))
@@ -122,9 +125,24 @@ class Transformer(nn.Module):
     def forward(self, x, mask=None):
         # Use only 6 layers for hierarchical structure
         if self.hierarchy:
+            residual_connections = []
             for i, block in zip(range(len(self.blocks)), self.blocks):
                 x = block(x, mask)
 #                 print('Block',i+1,'Min:', x.data.min().cpu().numpy(), 'Max', x.data.max().cpu().numpy())
+
+                # skip connections
+                if i in [2, 5, 8]:
+                    if i == 2 or 5:
+                        if self.include_class_token:
+                            token = x[:, 0:1, :]
+                            y = self.hour_glass(x[:, 1:, :])
+                            y = torch.cat([token, y], 1).contiguous()
+                        else:
+                            y = self.hour_glass(x)
+                        residual_connections.append(y)
+                    residual_connections.append(x)
+
+                # downsample resolution -- here we may add another pos-embedding!
                 if i == 5:
                     if self.include_class_token:
                         token = x[:, 0:1, :]
@@ -133,12 +151,10 @@ class Transformer(nn.Module):
                     else:
                         x = self.hour_glass(x)
 
-                    # @supro
-                    # h, w = self.imsize
-                    # h_ = int(h/16)
-                    # w_ = int(w/16)
-                    # img = torch.reshape(x[:, 1:, :].transpose(1, 2), (token.shape[0], token.shape[2], w_, h_)).contiguous()
-                    # x = torch.reshape(self.pool(img), (token.shape[0], token.shape[2], -1)).transpose(1, 2)
+            # add skip connections with a pre-norm
+            x = self.norm_layer[-1](residual)
+            for i,residual in enumerate(residual_connections):
+                x = x + self.norm_layer[-i-2](residual)
 
 
         # Added residual connection from layer 3, 6 and 9

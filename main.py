@@ -33,7 +33,7 @@ def get_args_parser():
     # Transformed Detection Args
     parser.add_argument('--experiment_name', default='train', type=str)
     parser.add_argument('--overfit_one_batch', default=False, action='store_true')
-    parser.add_argument('--pretrained_vit', default=True, type=bool)
+    parser.add_argument('--pretrained_vit', default=False, action='store_true')
     parser.add_argument('--pretrained_model', default='B_16_imagenet1k', type=str,
                         help="ViT pre-trained model type")
     parser.add_argument('--pretrain_dir', default='/mnt/data/hannan/.cache/torch/checkpoints',
@@ -214,27 +214,32 @@ def main(args):
 
     output_dir = Path(args.output_dir)
     if args.resume:
-        if args.resume.startswith('https'):
-            checkpoint = torch.hub.load_state_dict_from_url(
-                args.resume, map_location='cpu', check_hash=True)
-        else:
-            checkpoint = torch.load(args.resume, map_location='cpu')
-            # If we want to transfer learn on new image size, we need to resize positional embedding of ViT
-            if args.backbone in PRETRAINED_MODELS.keys():
-                pretrained_image_size = PRETRAINED_MODELS[args.backbone]['image_size']
-                if args.img_size != pretrained_image_size:
-                    old_img = (pretrained_image_size[0] // model_without_ddp.backbone.fh, pretrained_image_size[1] // model_without_ddp.backbone.fw),
-                    new_img = (model_without_ddp.backbone.gh, model_without_ddp.backbone.gw)
-                    posemb = checkpoint['model']['backbone.positional_embedding.pos_embedding']
-                    posemb_new = model_without_ddp.state_dict()['backbone.positional_embedding.pos_embedding']
-                    checkpoint['model']['backbone.positional_embedding.pos_embedding'] = \
-                    resize_positional_embedding_(posemb=posemb, posemb_new=posemb_new,
-                                                 has_class_token=hasattr(model.backbone, 'class_token'),
-                                                 gs_old=old_img[0], gs_new=new_img)
-                    maybe_print('Resized positional embeddings from {} to {}'.format(
-                        posemb.shape, posemb_new.shape), True)
-        model_without_ddp.load_state_dict(checkpoint['model'], strict=False)
+        # if args.resume.startswith('https'):
+        #     checkpoint = torch.hub.load_state_dict_from_url(
+        #         args.resume, map_location='cpu', check_hash=True)
+        # else:
+        weight_path = f"{args.pretrain_dir}/{args.backbone}.pth"
+        checkpoint = torch.load(weight_path, map_location='cpu')
+        # If we want to transfer learn on new image size, we need to resize positional embedding of ViT
+        if args.backbone in PRETRAINED_MODELS.keys():
+            pretrained_image_size = PRETRAINED_MODELS[args.backbone]['image_size']
+            if args.img_size != pretrained_image_size:
+                old_img = (pretrained_image_size[0] // model_without_ddp.backbone.fh, pretrained_image_size[1] // model_without_ddp.backbone.fw),
+                new_img = (model_without_ddp.backbone.gh, model_without_ddp.backbone.gw)
+                posemb = checkpoint['model']['backbone.positional_embedding.pos_embedding']
+                posemb_new = model_without_ddp.state_dict()['backbone.positional_embedding.pos_embedding']
+                checkpoint['model']['backbone.positional_embedding.pos_embedding'] = \
+                resize_positional_embedding_(posemb=posemb, posemb_new=posemb_new,
+                                                has_class_token=hasattr(model.backbone, 'class_token'),
+                                                gs_old=old_img[0], gs_new=new_img)
+                maybe_print('Resized positional embeddings from {} to {}'.format(
+                    posemb.shape, posemb_new.shape), True)
+        print('Resumming Model from:', weight_path)
+        ret = model_without_ddp.load_state_dict(checkpoint['model'], strict=False)
+        maybe_print('Missing keys when loading pretrained weights: {}'.format(ret.missing_keys), True)
+        maybe_print('Unexpected keys when loading pretrained weights: {}'.format(ret.unexpected_keys), True)
         if not args.eval and 'optimizer' in checkpoint and 'lr_scheduler' in checkpoint and 'epoch' in checkpoint  and not args.only_weight:
+            print('Resumming Optimizer from:', weight_path)
             optimizer.load_state_dict(checkpoint['optimizer'])
             lr_scheduler.load_state_dict(checkpoint['lr_scheduler'])
             args.start_epoch = checkpoint['epoch'] + 1

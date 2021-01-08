@@ -8,7 +8,7 @@ from torch import nn
 
 from util.misc import NestedTensor
 
-from positional_encodings import PositionalEncodingPermute2D
+# from positional_encodings import PositionalEncodingPermute2D
 
 
 class PositionEmbeddingSine(nn.Module):
