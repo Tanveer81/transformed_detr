@@ -6,27 +6,52 @@ Mostly copy-paste from https://github.com/pytorch/vision/blob/13b35ff/references
 """
 from pathlib import Path
 
+import numpy as np
 import torch
 import torch.utils.data
 import torchvision
 from pycocotools import mask as coco_mask
 
 import datasets.transforms as T
+from datasets.SmallObjectAugmentation import SmallObjectAugmentation
 from models.pytorch_pretrained_vit.configs import PRETRAINED_MODELS
 from models.pytorch_pretrained_vit.vit_pytorch_old import IMAGE_SIZE as vit_image_size
 
+SOA_THRESH = 64 * 64
+SOA_PROB = 1
+SOA_COPY_TIMES = 3
+SOA_EPOCHS = 30
+SOA_ONE_OBJECT = False
+SOA_ALL_OBJECTS = False
 
 class CocoDetection(torchvision.datasets.CocoDetection):
     def __init__(self, img_folder, ann_file, transforms, return_masks):
         super(CocoDetection, self).__init__(img_folder, ann_file)
         self._transforms = transforms
+        self._augmentation = SmallObjectAugmentation(SOA_THRESH, SOA_PROB, SOA_COPY_TIMES, SOA_EPOCHS,
+                                    SOA_ALL_OBJECTS, SOA_ONE_OBJECT)
         self.prepare = ConvertCocoPolysToMask(return_masks)
 
     def __getitem__(self, idx):
         img, target = super(CocoDetection, self).__getitem__(idx)
+        # annot = [xmin, ymin, xmax, ymax, label]
+        # img, annots = sample['img'], sample['annot']
         image_id = self.ids[idx]
         target = {'image_id': image_id, 'annotations': target}
         img, target = self.prepare(img, target)
+
+        annots = []
+        if self._augmentation is not None:
+            for t, label in zip(target['boxes'], target['labels']):
+                annots.append([t[0], t[1], t[2], t[3], label])
+            sample = {'img': img, 'annot': np.array(annots)}
+            sample = self._augmentation(sample)
+            img, annots = sample['img'], sample['annot']
+            for t in annots:
+                target['boxes'] = torch.cat((target['boxes'], torch.tensor([[t[0], t[1],
+                                                                             t[2], t[3]]], dtype=torch.float32)))
+                target['labels'] = torch.cat((target['labels'], torch.tensor([t[4]])))
+
         if self._transforms is not None:
             img, target = self._transforms(img, target)
         return img, target
@@ -154,7 +179,7 @@ def make_coco_transforms_ViT(image_size):
         T.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
      ])
 
-def make_coco_transforms_ViT_2(image_set, height, width, max):
+def make_coco_transforms_ViT_2(image_set, height, width, max=None):
 
     normalize = T.Compose([
         T.ToTensor(),
@@ -208,7 +233,7 @@ def build(image_set, args):
             dataset = CocoDetection(img_folder, ann_file, transforms=make_coco_transforms(image_set), return_masks=args.masks)
         else:
             # dataset = CocoDetection(img_folder, ann_file, transforms=make_coco_transforms_ViT_2(image_set, PRETRAINED_MODELS[args.backbone]["image_size"][0]), return_masks=args.masks)
-            dataset = CocoDetection(img_folder, ann_file, transforms=make_coco_transforms_ViT_2(image_set, args.img_size[0],args.img_size[1], 800), return_masks=args.masks)  #todo change 800 hardcoded
+            dataset = CocoDetection(img_folder, ann_file, transforms=make_coco_transforms_ViT_2(image_set, args.img_size[0],args.img_size[1], None), return_masks=args.masks)
     else:
         dataset = CocoDetection(img_folder, ann_file, transforms=make_coco_transforms(image_set), return_masks=args.masks)
 
