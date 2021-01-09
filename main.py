@@ -33,7 +33,7 @@ def get_args_parser():
     # Transformed Detection Args
     parser.add_argument('--experiment_name', default='train', type=str)
     parser.add_argument('--overfit_one_batch', default=False, action='store_true')
-    parser.add_argument('--pretrained_vit', default=True, type=bool)
+    parser.add_argument('--pretrained_vit', default=False, action='store_true')
     parser.add_argument('--pretrained_model', default='B_16_imagenet1k', type=str,
                         help="ViT pre-trained model type")
     parser.add_argument('--pretrain_dir', default='/mnt/data/hannan/.cache/torch/checkpoints',
@@ -140,7 +140,7 @@ def get_args_parser():
 
 def main(args):
     # wandb.login()
-    os.environ["CUDA_VISIBLE_DEVICES"] = "0,1"
+    os.environ["CUDA_VISIBLE_DEVICES"] = "1,2,3,5"
     utils.init_distributed_mode(args)
     print("git:\n  {}\n".format(utils.get_sha()))
 
@@ -229,15 +229,19 @@ def main(args):
                     posemb_new = model_without_ddp.state_dict()['backbone.positional_embedding.pos_embedding']
                     checkpoint['model']['backbone.positional_embedding.pos_embedding'] = \
                     resize_positional_embedding_(posemb=posemb, posemb_new=posemb_new,
-                                                 has_class_token=hasattr(model.backbone, 'class_token'),
-                                                 gs_old=old_img[0], gs_new=new_img)
+                                                    has_class_token=hasattr(model_without_ddp.backbone, 'class_token'),
+                                                    gs_old=old_img[0], gs_new=new_img)
                     maybe_print('Resized positional embeddings from {} to {}'.format(
                         posemb.shape, posemb_new.shape), True)
-        model_without_ddp.load_state_dict(checkpoint['model'], strict=False)
-        if not args.eval and 'optimizer' in checkpoint and 'lr_scheduler' in checkpoint and 'epoch' in checkpoint  and not args.only_weight:
-            optimizer.load_state_dict(checkpoint['optimizer'])
-            lr_scheduler.load_state_dict(checkpoint['lr_scheduler'])
-            args.start_epoch = checkpoint['epoch'] + 1
+            print('Resumming Model from:', args.resume)
+            ret = model_without_ddp.load_state_dict(checkpoint['model'], strict=False)
+            maybe_print('Missing keys when loading pretrained weights: {}'.format(ret.missing_keys), True)
+            maybe_print('Unexpected keys when loading pretrained weights: {}'.format(ret.unexpected_keys), True)
+            if not args.eval and 'optimizer' in checkpoint and 'lr_scheduler' in checkpoint and 'epoch' in checkpoint  and not args.only_weight:
+                print('Resumming Optimizer from:', args.resume)
+                optimizer.load_state_dict(checkpoint['optimizer'])
+                lr_scheduler.load_state_dict(checkpoint['lr_scheduler'])
+                args.start_epoch = checkpoint['epoch'] + 1
 
     if args.eval:
         test_stats, coco_evaluator = evaluate(model, criterion, postprocessors,

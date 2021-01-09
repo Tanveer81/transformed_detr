@@ -43,6 +43,7 @@ def load_pretrained_weights(
         else:
             raise ValueError(f'Pretrained model for {model_name} has not yet been released')
     else:
+        print("Loading weightfrom:",weights_path)
         state_dict = torch.load(weights_path)
 
     # Modifications to load partial state dict
