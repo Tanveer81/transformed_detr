@@ -48,6 +48,7 @@ def get_args_parser():
     parser.add_argument('--hierarchy', default=False, action='store_true')
     parser.add_argument('--only_weight', action='store_true', help='used for coco trainined detector')
     parser.add_argument('--pool', default='max', type=str, choices=('max', 'avg'))
+    parser.add_argument('--augment', default=False, action='store_true')
 
     # Training
     parser.add_argument('--lr', default=1e-4, type=float)

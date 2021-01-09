@@ -117,19 +117,20 @@ class SmallObjectAugmentation(object):
         if np.random.rand() > self.prob: return sample
         # annot = [xmin, ymin, xmax, ymax, label]
         img, annots = sample['img'], sample['annot']
-        w, h = img.size[0], img.size[1]
+        w, h = img.shape[0], img.shape[1]#img.size[0], img.size[1]
 
         small_object_list = list()
         for idx in range(annots.shape[0]):
             annot = annots[idx]
+            annot_w, annot_h = annot[2], annot[3]
             annot[:-1] = self.coco2voc(h, w, annot[0], annot[1], annot[2], annot[3])
-            annot_h, annot_w = annot[3] - annot[1], annot[2] - annot[0]
             if self.issmallobject(annot_h, annot_w):
                 small_object_list.append(idx)
 
         l = len(small_object_list)
         # No Small Object
-        if l == 0: return sample
+        if l == 0:
+            return None
 
         # Refine the copy_object by the given policy
         # Policy 2:
@@ -142,20 +143,22 @@ class SmallObjectAugmentation(object):
             copy_object_num = 1
 
         random_list = random.sample(range(l), copy_object_num)
-        annot_idx_of_small_object = [small_object_list[idx] for idx in random_list]
+        annot_idx_of_small_object = [small_object_list[idx] for idx in range(l)] #random_list]
         select_annots = annots[annot_idx_of_small_object, :] #[annots[i] for i in annot_idx_of_small_object]  #@ Tanveer
         annots = annots.tolist()
+        new_annots = []
         for idx in range(copy_object_num):
             annot = select_annots[idx]
             annot_h, annot_w = annot[3] - annot[1], annot[2] - annot[0]
 
-            if self.issmallobject(annot_h, annot_w) is False: continue
+            if self.issmallobject(annot_h, annot_w) is False:
+                continue
 
             for i in range(self.copy_times):
                 new_annot = self.create_copy_annot(h, w, annot, annots,)
                 if new_annot is not None:
                     img = self.add_patch_in_img(new_annot, annot, img)
-                    annot[:-1] = self.vooc2coco(h, w, annot[0], annot[1], annot[2], annot[3])
-                    annots.append(new_annot)
+                    new_annot[:-1] = self.vooc2coco(h, w, new_annot[0], new_annot[1], new_annot[2], new_annot[3])
+                    new_annots.append(new_annot)
 
-        return {'img': img, 'annot': np.array(annots)}
+        return {'img': img, 'annot': np.array(new_annots)}

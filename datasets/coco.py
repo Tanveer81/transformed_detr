@@ -10,6 +10,7 @@ import numpy as np
 import torch
 import torch.utils.data
 import torchvision
+from torchvision import transforms
 from pycocotools import mask as coco_mask
 
 import datasets.transforms as T
@@ -22,14 +23,16 @@ SOA_PROB = 1
 SOA_COPY_TIMES = 3
 SOA_EPOCHS = 30
 SOA_ONE_OBJECT = False
-SOA_ALL_OBJECTS = False
+SOA_ALL_OBJECTS = True
 
 class CocoDetection(torchvision.datasets.CocoDetection):
-    def __init__(self, img_folder, ann_file, transforms, return_masks):
+    def __init__(self, img_folder, ann_file, transforms, return_masks, aug):
         super(CocoDetection, self).__init__(img_folder, ann_file)
+        self.aug = aug
         self._transforms = transforms
-        self._augmentation = SmallObjectAugmentation(SOA_THRESH, SOA_PROB, SOA_COPY_TIMES, SOA_EPOCHS,
-                                    SOA_ALL_OBJECTS, SOA_ONE_OBJECT)
+        if aug:
+            self._augmentation = SmallObjectAugmentation(SOA_THRESH, SOA_PROB, SOA_COPY_TIMES,
+                                                         SOA_EPOCHS, SOA_ALL_OBJECTS, SOA_ONE_OBJECT)
         self.prepare = ConvertCocoPolysToMask(return_masks)
 
     def __getitem__(self, idx):
@@ -40,20 +43,25 @@ class CocoDetection(torchvision.datasets.CocoDetection):
         target = {'image_id': image_id, 'annotations': target}
         img, target = self.prepare(img, target)
 
-        annots = []
-        if self._augmentation is not None:
+        if self.aug:
+            annots = []
             for t, label in zip(target['boxes'], target['labels']):
                 annots.append([t[0], t[1], t[2], t[3], label])
-            sample = {'img': img, 'annot': np.array(annots)}
+            sample = {'img': np.array(img), 'annot': np.array(annots)}
             sample = self._augmentation(sample)
-            img, annots = sample['img'], sample['annot']
-            for t in annots:
-                target['boxes'] = torch.cat((target['boxes'], torch.tensor([[t[0], t[1],
-                                                                             t[2], t[3]]], dtype=torch.float32)))
-                target['labels'] = torch.cat((target['labels'], torch.tensor([t[4]])))
+            if sample is not None:
+                img, annots = sample['img'], sample['annot']
+                img = transforms.ToPILImage()(img)
+                for t in annots:
+                    target['boxes'] = torch.cat((target['boxes'], torch.tensor([[t[0], t[1],
+                                                                                 t[2], t[3]]], dtype=torch.float32)))
+                    target['labels'] = torch.cat((target['labels'], torch.tensor([t[4]], dtype=torch.int64)))
+                    target['area'] = torch.cat((target['area'], torch.tensor([t[2]*t[3]], dtype=torch.float32)))
+                    target['iscrowd'] = torch.cat((target['iscrowd'], torch.tensor([0], dtype=torch.int64)))
 
         if self._transforms is not None:
             img, target = self._transforms(img, target)
+
         return img, target
 
 
@@ -226,15 +234,15 @@ def build(image_set, args):
 
     # Use transformer for ViT
     if args.backbone == "ViT":
-        dataset = CocoDetection(img_folder, ann_file, transforms=make_coco_transforms_ViT(vit_image_size), return_masks=args.masks)
+        dataset = CocoDetection(img_folder, ann_file, transforms=make_coco_transforms_ViT(vit_image_size), return_masks=args.masks, aug=args.augment)
 
     elif args.backbone in PRETRAINED_MODELS.keys():
         if args.random_image_size:
-            dataset = CocoDetection(img_folder, ann_file, transforms=make_coco_transforms(image_set), return_masks=args.masks)
+            dataset = CocoDetection(img_folder, ann_file, transforms=make_coco_transforms(image_set), return_masks=args.masks, aug=args.augment)
         else:
             # dataset = CocoDetection(img_folder, ann_file, transforms=make_coco_transforms_ViT_2(image_set, PRETRAINED_MODELS[args.backbone]["image_size"][0]), return_masks=args.masks)
-            dataset = CocoDetection(img_folder, ann_file, transforms=make_coco_transforms_ViT_2(image_set, args.img_size[0],args.img_size[1], None), return_masks=args.masks)
+            dataset = CocoDetection(img_folder, ann_file, transforms=make_coco_transforms_ViT_2(image_set, args.img_size[0],args.img_size[1], None), return_masks=args.masks, aug=args.augment)
     else:
-        dataset = CocoDetection(img_folder, ann_file, transforms=make_coco_transforms(image_set), return_masks=args.masks)
+        dataset = CocoDetection(img_folder, ann_file, transforms=make_coco_transforms(image_set), return_masks=args.masks, aug=args.augment)
 
     return dataset
