@@ -349,12 +349,26 @@ def main(args):
     writer.close()
 
 
-def inference(args=None):
+def inference(args=None, resume='', skip_connection=False, img_width=384, img_height=384):
     if args==None:
         parser = argparse.ArgumentParser('DETR training and evaluation script',
                                          parents=[get_args_parser()])
         args = vars(parser.parse_args([]))
         args = Namespace(**args)
+        args.img_width=img_width
+        args.img_height=img_height
+        args.img_size = (args.img_height, args.img_width)
+        print(args)
+        if not args.output_dir:  # create output dir as per experiment name in exp folder
+            args.output_dir = './exp/' + args.experiment_name
+        Path(args.output_dir).mkdir(parents=True, exist_ok=True)
+
+    args.resume = resume
+    args.skip_connection = skip_connection
+    args.pretrained_vit = True
+    args.pretrain_dir = '/nfs/data3/koner/data/checkpoints/vit_detr/'
+    args.backbone = 'B_16_imagenet1k'
+
     utils.init_distributed_mode(args)
     print("git:\n  {}\n".format(utils.get_sha()))
 
@@ -405,15 +419,15 @@ def inference(args=None):
         else:
             checkpoint = torch.load(args.resume, map_location='cpu')
 
-        for n in checkpoint['model'].copy().keys():
-            if n.startswith(('transformer.encoder')):  # or n.startswith('freq_bias')
-                del (checkpoint['model'][n])
+    for n in checkpoint['model'].copy().keys():
+        if n.startswith(('transformer.encoder')):  # or n.startswith('freq_bias')
+            del (checkpoint['model'][n])
 
-        model_without_ddp.load_state_dict(checkpoint['model'])
-        if not args.eval and 'optimizer' in checkpoint and 'lr_scheduler' in checkpoint and 'epoch' in checkpoint:
-            optimizer.load_state_dict(checkpoint['optimizer'])
-            lr_scheduler.load_state_dict(checkpoint['lr_scheduler'])
-            args.start_epoch = checkpoint['epoch'] + 1
+    model_without_ddp.load_state_dict(checkpoint['model'])
+    if not args.eval and 'optimizer' in checkpoint and 'lr_scheduler' in checkpoint and 'epoch' in checkpoint:
+        optimizer.load_state_dict(checkpoint['optimizer'])
+        lr_scheduler.load_state_dict(checkpoint['lr_scheduler'])
+        args.start_epoch = checkpoint['epoch'] + 1
 
     return model
 
@@ -427,7 +441,10 @@ if __name__ == '__main__':
     if not args.output_dir:  # create output dir as per experiment name in exp folder
         args.output_dir = './exp/' + args.experiment_name
     Path(args.output_dir).mkdir(parents=True, exist_ok=True)
-    main(args)
-    # model = inference(args)
-    # print(model)
-    # print("done")
+    # main(args)
+    # model = inference(args, resume = '/nfs/data3/koner/data/checkpoints/vit_detr/exp/skip_connection_wdNorm/checkpoint.pth', skip_connection=True)
+    # model = inference(args, resume='/mnt/data/hannan/deit/deit_base_patch16_224-b5f2ef4d.pth', skip_connection=False)
+    model = inference(args=None, resume='/nfs/data3/koner/data/checkpoints/vit_detr/exp/skip_connection_592_432/checkpoint.pth',skip_connection=True)
+
+    print(model)
+    print("done")
