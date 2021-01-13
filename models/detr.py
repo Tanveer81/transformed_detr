@@ -5,6 +5,7 @@ DETR model and criterion classes.
 import torch
 import torch.nn.functional as F
 from torch import nn
+from torchvision.ops import nms 
 import matplotlib.pyplot as plt
 
 from util import box_ops
@@ -309,6 +310,13 @@ class SetCriterion(nn.Module):
 
 class PostProcess(nn.Module):
     """ This module converts the model's output into the format expected by the coco api"""
+    def __init__(self, use_nms=True):
+        """ Create the criterion.
+        Parameters:
+            nms: non maximum supression for detected object
+        """
+        super().__init__()
+        self.use_nms = use_nms
 
     @torch.no_grad()
     def forward(self, outputs, target_sizes):
@@ -334,7 +342,13 @@ class PostProcess(nn.Module):
         scale_fct = torch.stack([img_w, img_h, img_w, img_h], dim=1)
         boxes = boxes * scale_fct[:, None, :]
 
-        results = [{'scores': s, 'labels': l, 'boxes': b} for s, l, b in zip(scores, labels, boxes)]
+        if self.use_nms:  # perform NMS
+            results = []
+            for s, l, b in zip(scores, labels, boxes):
+                keep = nms(b, s, iou_threshold=0.7)
+                results.append({'scores': s[keep], 'labels': l[keep], 'boxes': b[keep]})
+        else:
+            results = [{'scores': s, 'labels': l, 'boxes': b} for s, l, b in zip(scores, labels, boxes)]
 
         return results
 
