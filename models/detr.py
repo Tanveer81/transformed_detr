@@ -392,7 +392,7 @@ def build(args):
             emb_dropout=0.1,
         )
 
-    elif args.backbone in PRETRAINED_MODELS.keys() or args.backbone in ['deit_base_patch16_224-b5f2ef4d']:
+    elif args.backbone in PRETRAINED_MODELS.keys():
         args.backbone_name = "ViT"
         weight_path = f"{args.pretrain_dir}/{args.backbone}.pth" #None if (args.overfit_one_batch or args.resume) else
         backbone = ViT(args.backbone,
