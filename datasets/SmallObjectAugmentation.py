@@ -117,13 +117,13 @@ class SmallObjectAugmentation(object):
         if np.random.rand() > self.prob: return sample
         # annot = [xmin, ymin, xmax, ymax, label]
         img, annots = sample['img'], sample['annot']
-        w, h = img.shape[0], img.shape[1]#img.size[0], img.size[1]
+        w, h = img.shape[1], img.shape[0]#img.size[0], img.size[1]
 
         small_object_list = list()
         for idx in range(annots.shape[0]):
             annot = annots[idx]
             annot_w, annot_h = annot[2], annot[3]
-            annot[:-1] = self.coco2voc(h, w, annot[0], annot[1], annot[2], annot[3])
+            # annot[:-1] = self.coco2voc(h, w, annot[0], annot[1], annot[2], annot[3])
             if self.issmallobject(annot_h, annot_w):
                 small_object_list.append(idx)
 
@@ -149,7 +149,7 @@ class SmallObjectAugmentation(object):
         new_annots = []
         for idx in range(copy_object_num):
             annot = select_annots[idx]
-            annot_h, annot_w = annot[3] - annot[1], annot[2] - annot[0]
+            annot_h, annot_w = annot[2], annot[3]
 
             if self.issmallobject(annot_h, annot_w) is False:
                 continue
@@ -158,7 +158,7 @@ class SmallObjectAugmentation(object):
                 new_annot = self.create_copy_annot(h, w, annot, annots,)
                 if new_annot is not None:
                     img = self.add_patch_in_img(new_annot, annot, img)
-                    new_annot[:-1] = self.vooc2coco(h, w, new_annot[0], new_annot[1], new_annot[2], new_annot[3])
+                    # new_annot[:-1] = self.vooc2coco(h, w, new_annot[0], new_annot[1], new_annot[2], new_annot[3])
                     new_annots.append(new_annot)
 
         return {'img': img, 'annot': np.array(new_annots)}
