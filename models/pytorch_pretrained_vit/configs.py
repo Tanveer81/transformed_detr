@@ -102,4 +102,10 @@ PRETRAINED_MODELS = {
       'image_size': (384, 384),
       'url': "https://github.com/lukemelas/PyTorch-Pretrained-ViT/releases/download/0.0.2/L_32_imagenet1k.pth"
     },
+    'deit_base_patch16_224-b5f2ef4d': {
+        'config': drop_head_variant(get_b16_config()), #TODO: check valid config
+        'num_classes': 1000,
+        'image_size': (224, 224),
+        'url': "https://dl.fbaipublicfiles.com/deit/deit_base_patch16_224-b5f2ef4d.pth"
+    },
 }

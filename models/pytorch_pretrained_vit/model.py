@@ -73,7 +73,8 @@ class ViT(nn.Module):
             include_class_token: bool = True,
             skip_connection: bool = False,
             hierarchy: bool = False,
-            pool: str = None
+            pool: str = None,
+            deit:bool = False
     ):
 
         super().__init__()
@@ -181,6 +182,7 @@ class ViT(nn.Module):
                 old_img=(pretrained_image_size[0] // fh, pretrained_image_size[1] // fw),
                 # original vit 384x384
                 new_img=(gh, gw),
+                rename_deit=deit
             )
 
     @torch.no_grad()

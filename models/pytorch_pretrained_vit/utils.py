@@ -19,7 +19,8 @@ def load_pretrained_weights(
     verbose=True,
     strict=False,
     old_img = None,
-    new_img = None
+    new_img = None,
+    rename_deit=False
 ):
     """Loads pretrained weights from weights path or download using url.
     Args:
@@ -56,6 +57,32 @@ def load_pretrained_weights(
         expected_missing_keys += ['pre_logits.weight', 'pre_logits.bias']
     for key in expected_missing_keys:
         state_dict.pop(key)
+
+    # Change checkpoint dictionary
+    if rename_deit:
+        num_heads_model = int([n for (n, p) in model.transformer.blocks.named_parameters()][-1].split('.')[0]) + 1
+        num_heads_state_dict = int((len(state_dict['model']) - 8) / 12)
+        if num_heads_model != num_heads_state_dict:
+            raise ValueError(f'Pretrained model has different number of heads: {num_heads_state_dict} than defined models heads: {num_heads_model}')
+        state_dict['class_token'] = state_dict['model'].pop('cls_token')
+        state_dict['positional_embedding.pos_embedding'] = state_dict['model'].pop('pos_embed')
+        state_dict['patch_embedding.weight'] = state_dict['model'].pop('patch_embed.proj.weight')
+        state_dict['patch_embedding.bias'] = state_dict['model'].pop('patch_embed.proj.bias')
+        state_dict['fc.weight'] = state_dict['model'].pop('head.weight')
+        state_dict['fc.bias'] = state_dict['model'].pop('head.bias')
+        for i in range(num_heads_model):
+            qkv_w = state_dict['model'].pop(f'blocks.{i}.attn.qkv.weight').reshape(model.dim, 3, -1).permute(1, 0, 2)
+            qkv_b = state_dict['model'].pop(f'blocks.{i}.attn.qkv.bias').reshape(model.dim, 3, -1).permute(1, 0, 2)
+            state_dict[f'blocks.{i}.attn.proj_q.weight'] = qkv_w[0]
+            state_dict[f'blocks.{i}.attn.proj_q.bias'] = qkv_b[0]
+            state_dict[f'blocks.{i}.attn.proj_k.weight'] = qkv_w[1]
+            state_dict[f'blocks.{i}.attn.proj_k.bias'] = qkv_b[1]
+            state_dict[f'blocks.{i}.attn.proj_v.weight'] = qkv_w[2]
+            state_dict[f'blocks.{i}.attn.proj_v.bias'] = qkv_b[2]
+            state_dict[f'blocks.{i}.pwff.fc1.weight'] = state_dict['model'].pop(f'blocks.{i}.mlp.fc1.weight')
+            state_dict[f'blocks.{i}.pwff.fc1.bias'] = state_dict['model'].pop(f'blocks.{i}.mlp.fc1.bias')
+            state_dict[f'blocks.{i}.pwff.fc2.weight'] = state_dict['model'].pop(f'blocks.{i}.mlp.fc2.weight')
+            state_dict[f'blocks.{i}.pwff.fc2.bias'] = state_dict['model'].pop(f'blocks.{i}.mlp.fc2.bias')
 
     # Change size of positional embeddings
     if resize_positional_embedding: 

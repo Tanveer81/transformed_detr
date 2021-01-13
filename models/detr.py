@@ -392,9 +392,9 @@ def build(args):
             emb_dropout=0.1,
         )
 
-    elif args.backbone in PRETRAINED_MODELS.keys():
+    elif args.backbone in PRETRAINED_MODELS.keys() or args.backbone in ['deit_base_patch16_224-b5f2ef4d']:
         args.backbone_name = "ViT"
-        weight_path = f"{args.pretrain_dir}/{args.backbone}.pth" #None if (args.overfit_one_batch or args.resume) else 
+        weight_path = f"{args.pretrain_dir}/{args.backbone}.pth" #None if (args.overfit_one_batch or args.resume) else
         backbone = ViT(args.backbone,
                         pretrained=args.pretrained_vit,
                         weight_path=weight_path,
@@ -406,7 +406,8 @@ def build(args):
                         include_class_token=args.include_class_token,
                         skip_connection=args.skip_connection,
                         hierarchy = args.hierarchy,
-                        pool = args.pool
+                        pool = args.pool,
+                        deit=args.deit
                        )
         # trasformer d_model
         args.hidden_dim = PRETRAINED_MODELS[args.backbone]['config']['dim']
