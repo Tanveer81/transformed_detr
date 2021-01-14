@@ -112,43 +112,51 @@ class SmallObjectAugmentation(object):
         h = min(h, image_height)
         return [x1, y1, torch.tensor(w), torch.tensor(h)]
 
-    def __call__(self, sample):
-        if self.all_objects and self.one_object: return sample
-        if np.random.rand() > self.prob: return sample
-        # annot = [xmin, ymin, xmax, ymax, label]
-        img, annots = sample['img'], sample['annot']
-        w, h = img.shape[1], img.shape[0]#img.size[0], img.size[1]
+    def __call__(self, img, target):
+        if self.all_objects and self.one_object:
+            return None
+        if np.random.rand() > self.prob:
+            return None
 
-        tgt_obj_idx = np.where((annots[:,2]- annots[:,0])*(annots[:,3]-annots[:,1])<self.thresh)[0]
-        if len(tgt_obj_idx)>0 : # all obj are more than threshold
-            l = len(tgt_obj_idx)
+        annots = []
+        for t, label in zip(target['boxes'], target['labels']):
+            annots.append([t[0], t[1], t[2], t[3], label])
+        img, annots = np.array(img), np.array(annots)
+        w, h = img.shape[1], img.shape[0]
+
+        tgt_obj_idx = np.where((annots[:, 2] - annots[:, 0])*(annots[:, 3]-annots[:, 1]) < self.thresh)[0]
+        if len(tgt_obj_idx) > 0: # all obj are more than threshold
             # Refine the copy_object by the given policy
-            if self.one_object:    # Policy 1:
-                copy_object_num = 1
-            elif self.all_objects:
-                copy_object_num = np.random.choice(tgt_obj_idx)
-            else:
-                # Policy 2:
-                copy_object_num = np.random.choice(tgt_obj_idx)  # np.random.randint(0, l)
+            if self.one_object:    # Policy 1
+                copy_object_idx = np.random.choice(tgt_obj_idx)
+            elif self.all_objects: # Policy 3
+                copy_object_idx = tgt_obj_idx
+            else: # Policy 2
+                copy_object_idx = np.random.choice(tgt_obj_idx, np.random.choice(len(tgt_obj_idx)), replace=False)
 
-            select_annots = annots[tgt_obj_idx]  # [annots[i] for i in annot_idx_of_small_object]  #@ Tanveer
+            select_annots = annots[copy_object_idx]
             annots = annots.tolist()
             new_annots = []
             for annot in select_annots:
-                # annot = select_annots[idx]
-                # annot_h, annot_w = annot[3] - annot[1], annot[2] - annot[0]
-
-                # if self.issmallobject(annot_h, annot_w) is False:
-                #     continue
-
                 for i in range(self.copy_times):
-                    new_annot = self.create_copy_annot(h, w, annot, annots, )
+                    new_annot = self.create_copy_annot(h, w, annot, annots,)
                     if new_annot is not None:
                         img = self.add_patch_in_img(new_annot, annot, img)
-                        #new_annot[:-1] = self.vooc2coco(h, w, new_annot[0], new_annot[1], new_annot[2], new_annot[3])
                         new_annots.append(new_annot)
 
-            return {'img': img, 'annot': np.array(new_annots)}
+            for t in np.array(new_annots):
+                target['boxes'] = torch.cat((target['boxes'], torch.tensor([[t[0], t[1],
+                                                                             t[2], t[3]]],
+                                                                           dtype=torch.float32)))
+                target['labels'] = torch.cat(
+                    (target['labels'], torch.tensor([t[4]], dtype=torch.int64)))
+                target['area'] = torch.cat((target['area'],
+                                            torch.tensor([t[2] - t[0] * t[3] - t[1]],
+                                                         dtype=torch.float32)))
+                target['iscrowd'] = torch.cat(
+                    (target['iscrowd'], torch.tensor([0], dtype=torch.int64)))
+
+            return {'img': img, 'target': target}
         else:
             return None
 

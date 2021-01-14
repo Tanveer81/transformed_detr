@@ -18,12 +18,12 @@ from datasets.SmallObjectAugmentation import SmallObjectAugmentation
 from models.pytorch_pretrained_vit.configs import PRETRAINED_MODELS
 from models.pytorch_pretrained_vit.vit_pytorch_old import IMAGE_SIZE as vit_image_size
 
-SOA_THRESH = 200 * 200
-SOA_PROB = 1
+SOA_THRESH = 64 * 64
+SOA_PROB = 0.5
 SOA_COPY_TIMES = 3
 SOA_EPOCHS = 30
 SOA_ONE_OBJECT = False
-SOA_ALL_OBJECTS = True
+SOA_ALL_OBJECTS = False
 
 class CocoDetection(torchvision.datasets.CocoDetection):
     def __init__(self, img_folder, ann_file, transforms, return_masks, aug):
@@ -37,27 +37,15 @@ class CocoDetection(torchvision.datasets.CocoDetection):
 
     def __getitem__(self, idx):
         img, target = super(CocoDetection, self).__getitem__(idx)
-        # annot = [xmin, ymin, xmax, ymax, label]
-        # img, annots = sample['img'], sample['annot']
         image_id = self.ids[idx]
         target = {'image_id': image_id, 'annotations': target}
         img, target = self.prepare(img, target)
 
         if self.aug:
-            annots = []
-            for t, label in zip(target['boxes'], target['labels']):
-                annots.append([t[0], t[1], t[2], t[3], label])
-            sample = {'img': np.array(img), 'annot': np.array(annots)}
-            sample = self._augmentation(sample)
+            sample = self._augmentation(img, target)
             if sample is not None:
-                img, annots = sample['img'], sample['annot']
+                img, target = sample['img'], sample['target']
                 img = transforms.ToPILImage()(img)
-                for t in annots:
-                    target['boxes'] = torch.cat((target['boxes'], torch.tensor([[t[0], t[1],
-                                                                                 t[2], t[3]]], dtype=torch.float32)))
-                    target['labels'] = torch.cat((target['labels'], torch.tensor([t[4]], dtype=torch.int64)))
-                    target['area'] = torch.cat((target['area'], torch.tensor([t[2]-t[0]*t[3]-t[1]], dtype=torch.float32)))
-                    target['iscrowd'] = torch.cat((target['iscrowd'], torch.tensor([0], dtype=torch.int64)))
 
         if self._transforms is not None:
             img, target = self._transforms(img, target)
