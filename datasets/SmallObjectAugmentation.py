@@ -117,6 +117,8 @@ class SmallObjectAugmentation(object):
             return None
         if np.random.rand() > self.prob:
             return None
+        if target['boxes'].shape[0] == 0:
+            return None
 
         annots = []
         for t, label in zip(target['boxes'], target['labels']):
