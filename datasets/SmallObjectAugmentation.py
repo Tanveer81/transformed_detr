@@ -77,6 +77,8 @@ class SmallObjectAugmentation(object):
         annot = annot.astype(np.int)
         annot_h, annot_w = annot[3] - annot[1], annot[2] - annot[0]
         for epoch in range(self.epochs):
+            if int(annot_w / 2) >= int(w - annot_w / 2) or int(annot_h / 2) >= int(h - annot_h / 2):
+                continue
             random_x, random_y = np.random.randint(int(annot_w / 2), int(w - annot_w / 2)), \
                                  np.random.randint(int(annot_h / 2), int(h - annot_h / 2))
             xmin, ymin = random_x - annot_w / 2, random_y - annot_h / 2

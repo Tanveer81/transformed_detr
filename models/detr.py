@@ -5,7 +5,7 @@ DETR model and criterion classes.
 import torch
 import torch.nn.functional as F
 from torch import nn
-from torchvision.ops import nms 
+# from torchvision.ops import nms
 import matplotlib.pyplot as plt
 
 from util import box_ops
@@ -342,13 +342,13 @@ class PostProcess(nn.Module):
         scale_fct = torch.stack([img_w, img_h, img_w, img_h], dim=1)
         boxes = boxes * scale_fct[:, None, :]
 
-        if self.use_nms:  # perform NMS
-            results = []
-            for s, l, b in zip(scores, labels, boxes):
-                keep = nms(b, s, iou_threshold=0.5)
-                results.append({'scores': s[keep], 'labels': l[keep], 'boxes': b[keep]})
-        else:
-            results = [{'scores': s, 'labels': l, 'boxes': b} for s, l, b in zip(scores, labels, boxes)]
+        # if self.use_nms:  # perform NMS
+        #     results = []
+        #     for s, l, b in zip(scores, labels, boxes):
+        #         keep = nms(b, s, iou_threshold=0.5)
+        #         results.append({'scores': s[keep], 'labels': l[keep], 'boxes': b[keep]})
+        # else:
+        results = [{'scores': s, 'labels': l, 'boxes': b} for s, l, b in zip(scores, labels, boxes)]
 
         return results
 
