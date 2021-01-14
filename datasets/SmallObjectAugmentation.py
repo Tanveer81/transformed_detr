@@ -120,45 +120,36 @@ class SmallObjectAugmentation(object):
         w, h = img.shape[0], img.shape[1]#img.size[0], img.size[1]
 
         small_object_list = list()
-        for idx in range(annots.shape[0]):
-            annot = annots[idx]
-            annot_w, annot_h = annot[2], annot[3]
-            annot[:-1] = self.coco2voc(h, w, annot[0], annot[1], annot[2], annot[3])
-            if self.issmallobject(annot_h, annot_w):
-                small_object_list.append(idx)
+        tgt_obj_idx = np.where((annots[:,2]- annots[:,0])*(annots[:,3]-annots[:,1])<self.thresh)[0]
+        if len(tgt_obj_idx)>0 : # all obj are more than threshold
+            l = len(tgt_obj_idx)
+            # Refine the copy_object by the given policy
+            if self.one_object:    # Policy 1:
+                copy_object_num = 1
+            elif self.all_objects:
+                copy_object_num = np.random.choice(tgt_obj_idx)
+            else:
+                # Policy 2:
+                copy_object_num = np.random.choice(tgt_obj_idx)  # np.random.randint(0, l)
 
-        l = len(small_object_list)
-        # No Small Object
-        if l == 0:
+            select_annots = annots[tgt_obj_idx]  # [annots[i] for i in annot_idx_of_small_object]  #@ Tanveer
+            annots = annots.tolist()
+            new_annots = []
+            for annot in select_annots:
+                # annot = select_annots[idx]
+                # annot_h, annot_w = annot[3] - annot[1], annot[2] - annot[0]
+
+                # if self.issmallobject(annot_h, annot_w) is False:
+                #     continue
+
+                for i in range(self.copy_times):
+                    new_annot = self.create_copy_annot(h, w, annot, annots, )
+                    if new_annot is not None:
+                        img = self.add_patch_in_img(new_annot, annot, img)
+                        #new_annot[:-1] = self.vooc2coco(h, w, new_annot[0], new_annot[1], new_annot[2], new_annot[3])
+                        new_annots.append(new_annot)
+
+            return {'img': img, 'annot': np.array(new_annots)}
+        else:
             return None
 
-        # Refine the copy_object by the given policy
-        # Policy 2:
-        copy_object_num = np.random.randint(0, l) #np.random.randint(0, l)
-        # Policy 3:
-        if self.all_objects:
-            copy_object_num = l
-        # Policy 1:
-        if self.one_object:
-            copy_object_num = 1
-
-        random_list = random.sample(range(l), copy_object_num)
-        annot_idx_of_small_object = [small_object_list[idx] for idx in range(l)] #random_list]
-        select_annots = annots[annot_idx_of_small_object, :] #[annots[i] for i in annot_idx_of_small_object]  #@ Tanveer
-        annots = annots.tolist()
-        new_annots = []
-        for idx in range(copy_object_num):
-            annot = select_annots[idx]
-            annot_h, annot_w = annot[3] - annot[1], annot[2] - annot[0]
-
-            if self.issmallobject(annot_h, annot_w) is False:
-                continue
-
-            for i in range(self.copy_times):
-                new_annot = self.create_copy_annot(h, w, annot, annots,)
-                if new_annot is not None:
-                    img = self.add_patch_in_img(new_annot, annot, img)
-                    new_annot[:-1] = self.vooc2coco(h, w, new_annot[0], new_annot[1], new_annot[2], new_annot[3])
-                    new_annots.append(new_annot)
-
-        return {'img': img, 'annot': np.array(new_annots)}

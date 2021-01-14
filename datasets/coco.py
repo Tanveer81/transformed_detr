@@ -56,7 +56,7 @@ class CocoDetection(torchvision.datasets.CocoDetection):
                     target['boxes'] = torch.cat((target['boxes'], torch.tensor([[t[0], t[1],
                                                                                  t[2], t[3]]], dtype=torch.float32)))
                     target['labels'] = torch.cat((target['labels'], torch.tensor([t[4]], dtype=torch.int64)))
-                    target['area'] = torch.cat((target['area'], torch.tensor([t[2]*t[3]], dtype=torch.float32)))
+                    target['area'] = torch.cat((target['area'], torch.tensor([t[2]-t[0]*t[3]-t[1]], dtype=torch.float32)))
                     target['iscrowd'] = torch.cat((target['iscrowd'], torch.tensor([0], dtype=torch.int64)))
 
         if self._transforms is not None:
