@@ -143,7 +143,7 @@ def get_args_parser():
 
 def main(args):
     # wandb.login()
-    os.environ["CUDA_VISIBLE_DEVICES"] = "0,1,3,7"
+    os.environ["CUDA_VISIBLE_DEVICES"] = "1"
     utils.init_distributed_mode(args)
     print("git:\n  {}\n".format(utils.get_sha()))
 
