@@ -345,7 +345,7 @@ class PostProcess(nn.Module):
         if self.use_nms:  # perform NMS
             results = []
             for s, l, b in zip(scores, labels, boxes):
-                keep = nms(b, s, iou_threshold=0.7)
+                keep = nms(b, s, iou_threshold=0.5)
                 results.append({'scores': s[keep], 'labels': l[keep], 'boxes': b[keep]})
         else:
             results = [{'scores': s, 'labels': l, 'boxes': b} for s, l, b in zip(scores, labels, boxes)]

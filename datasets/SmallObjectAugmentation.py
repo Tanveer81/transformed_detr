@@ -117,9 +117,8 @@ class SmallObjectAugmentation(object):
         if np.random.rand() > self.prob: return sample
         # annot = [xmin, ymin, xmax, ymax, label]
         img, annots = sample['img'], sample['annot']
-        w, h = img.shape[0], img.shape[1]#img.size[0], img.size[1]
+        w, h = img.shape[1], img.shape[0]#img.size[0], img.size[1]
 
-        small_object_list = list()
         tgt_obj_idx = np.where((annots[:,2]- annots[:,0])*(annots[:,3]-annots[:,1])<self.thresh)[0]
         if len(tgt_obj_idx)>0 : # all obj are more than threshold
             l = len(tgt_obj_idx)

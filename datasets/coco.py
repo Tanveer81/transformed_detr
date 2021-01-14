@@ -18,7 +18,7 @@ from datasets.SmallObjectAugmentation import SmallObjectAugmentation
 from models.pytorch_pretrained_vit.configs import PRETRAINED_MODELS
 from models.pytorch_pretrained_vit.vit_pytorch_old import IMAGE_SIZE as vit_image_size
 
-SOA_THRESH = 64 * 64
+SOA_THRESH = 200 * 200
 SOA_PROB = 1
 SOA_COPY_TIMES = 3
 SOA_EPOCHS = 30
