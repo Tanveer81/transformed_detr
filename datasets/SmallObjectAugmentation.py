@@ -147,16 +147,10 @@ class SmallObjectAugmentation(object):
                         new_annots.append(new_annot)
 
             for t in np.array(new_annots):
-                target['boxes'] = torch.cat((target['boxes'], torch.tensor([[t[0], t[1],
-                                                                             t[2], t[3]]],
-                                                                           dtype=torch.float32)))
-                target['labels'] = torch.cat(
-                    (target['labels'], torch.tensor([t[4]], dtype=torch.int64)))
-                target['area'] = torch.cat((target['area'],
-                                            torch.tensor([t[2] - t[0] * t[3] - t[1]],
-                                                         dtype=torch.float32)))
-                target['iscrowd'] = torch.cat(
-                    (target['iscrowd'], torch.tensor([0], dtype=torch.int64)))
+                target['boxes'] = torch.cat((target['boxes'], torch.tensor([[t[0], t[1], t[2], t[3]]], dtype=torch.float32)))
+                target['labels'] = torch.cat((target['labels'], torch.tensor([t[4]], dtype=torch.int64)))
+                target['area'] = torch.cat((target['area'], torch.tensor([t[2] - t[0] * t[3] - t[1]], dtype=torch.float32)))
+                target['iscrowd'] = torch.cat((target['iscrowd'], torch.tensor([0], dtype=torch.int64)))
 
             return {'img': img, 'target': target}
         else:
