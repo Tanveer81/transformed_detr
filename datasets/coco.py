@@ -167,7 +167,7 @@ def make_coco_transforms(image_set):
     raise ValueError(f'unknown {image_set}')
 
 
-def make_coco_transforms_ViT(image_set, width, height, max=None):
+def make_coco_transforms_ViT(image_set, image_size, max=None):
 
     normalize = T.Compose([
         T.ToTensor(),
@@ -181,12 +181,12 @@ def make_coco_transforms_ViT(image_set, width, height, max=None):
             T.RandomHorizontalFlip(),
             T.RandomSelect(
                 # T.RandomResize(scales, max_size=1333),
-                T.FixedResize((width, height), max),
+                T.FixedResize(image_size, max),
                 T.Compose([
                     T.RandomResize(scales),
                     T.RandomSizeCrop(384, 600),
                     # T.RandomResize(scales, max_size=1333),
-                    T.FixedResize((width, height), max),
+                    T.FixedResize(image_size, max),
                 ])
             ),
             normalize,
@@ -195,7 +195,7 @@ def make_coco_transforms_ViT(image_set, width, height, max=None):
     if image_set == 'val':
         return T.Compose([
             # T.RandomResize([800], max_size=1333),
-            T.FixedResize((width, height), max),
+            T.FixedResize(image_size, max),
             normalize,
         ])
 
@@ -217,7 +217,7 @@ def build(image_set, args):
         if args.random_image_size:
             dataset = CocoDetection(img_folder, ann_file, transforms=make_coco_transforms(image_set), return_masks=args.masks, aug=args.augment)
         else:
-            dataset = CocoDetection(img_folder, ann_file, transforms=make_coco_transforms_ViT(image_set, args.img_size[1], args.img_size[0], None), return_masks=args.masks, aug=args.augment)
+            dataset = CocoDetection(img_folder, ann_file, transforms=make_coco_transforms_ViT(image_set, args.img_size, None), return_masks=args.masks, aug=args.augment)
     else:
         dataset = CocoDetection(img_folder, ann_file, transforms=make_coco_transforms(image_set), return_masks=args.masks, aug=args.augment)
 

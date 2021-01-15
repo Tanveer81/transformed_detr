@@ -364,7 +364,7 @@ def inference(args=None, resume='', skip_connection=False, img_width=384, img_he
         args = Namespace(**args)
         args.img_width=img_width
         args.img_height=img_height
-        args.img_size = (args.img_height, args.img_width)
+        args.img_size = (args.img_width, args.img_height)
         print(args)
         if not args.output_dir:  # create output dir as per experiment name in exp folder
             args.output_dir = './exp/' + args.experiment_name
@@ -445,7 +445,7 @@ if __name__ == '__main__':
     args = parser.parse_args()
     if args.deit and args.pretrained_vit:
         assert 'deit' in args.pretrain_dir, 'for pretraining with deit please load deit checkpoint'
-    args.img_size = (args.img_height, args.img_width)
+    args.img_size = (args.img_width, args.img_height)
     print(args)
     if not args.output_dir:  # create output dir as per experiment name in exp folder
         args.output_dir = './exp/' + args.experiment_name
