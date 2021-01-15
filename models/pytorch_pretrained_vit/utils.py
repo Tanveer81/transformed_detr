@@ -60,11 +60,11 @@ def load_pretrained_weights(
 
     # Change checkpoint dictionary
     if deit:
-        old_img = (14,14)
-        num_heads_model = int([n for (n, p) in model.transformer.blocks.named_parameters()][-1].split('.')[0]) + 1 #todo RK, its not head, its number of layer
-        num_heads_state_dict = int((len(state_dict['model']) - 8) / 12)
-        if num_heads_model != num_heads_state_dict:
-            raise ValueError(f'Pretrained model has different number of heads: {num_heads_state_dict} than defined models heads: {num_heads_model}')
+        old_img = (14,14) #TODO: check if not needed
+        num_layers_model = int([n for (n, p) in model.transformer.blocks.named_parameters()][-1].split('.')[0]) + 1 #todo RK, its not head, its number of layer
+        num_layers_state_dict = int((len(state_dict['model']) - 8) / 12)
+        if num_layers_model != num_layers_state_dict:
+            raise ValueError(f'Pretrained model has different number of layers: {num_layers_state_dict} than defined models layers: {num_layers_model}')
         state_dict['class_token'] = state_dict['model'].pop('cls_token')
         state_dict['positional_embedding.pos_embedding'] = state_dict['model'].pop('pos_embed')
         state_dict['patch_embedding.weight'] = state_dict['model'].pop('patch_embed.proj.weight')
@@ -74,7 +74,7 @@ def load_pretrained_weights(
         state_dict['norm.weight'] = state_dict['model'].pop('norm.weight')
         state_dict['norm.bias'] = state_dict['model'].pop('norm.bias')
 
-        for i in range(num_heads_model):
+        for i in range(num_layers_model):
             qkv_w = state_dict['model'].pop(f'blocks.{i}.attn.qkv.weight').reshape(model.dim, 3, -1).permute(1, 0, 2)
             qkv_b = state_dict['model'].pop(f'blocks.{i}.attn.qkv.bias').reshape(model.dim, 3, -1).permute(1, 0, 2)
             state_dict[f'transformer.blocks.{i}.attn.proj_q.weight'] = qkv_w[0]

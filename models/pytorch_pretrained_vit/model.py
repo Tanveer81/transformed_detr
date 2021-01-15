@@ -170,7 +170,7 @@ class ViT(nn.Module):
                 resize_positional_embedding=(image_size != pretrained_image_size),
                 old_img=(pretrained_image_size[0] // fh, pretrained_image_size[1] // fw),
                 # original vit 384x384
-                new_img=(gw, gh),   #todo experiment with height and weight
+                new_img=(gh, gw),   #todo experiment with height and weight
                 deit=deit
             )
 

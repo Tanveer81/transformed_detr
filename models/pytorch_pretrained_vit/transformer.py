@@ -112,7 +112,7 @@ class Transformer(nn.Module):
             self.pool = nn.AvgPool2d(kernel_size=(2, 2), stride=(2, 2))
         elif self.pool == 'max':
             self.pool = nn.MaxPool2d(kernel_size=(2, 2), stride=(2, 2))
-        self.imsize = imsize
+        # self.imsize = imsize
 
     def hour_glass(self, x):
         x = x.permute(0, 2, 1).reshape(x.shape[0], x.shape[2], self.gh, self.gw)

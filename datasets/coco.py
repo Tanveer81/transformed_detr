@@ -166,16 +166,8 @@ def make_coco_transforms(image_set):
 
     raise ValueError(f'unknown {image_set}')
 
-# Transformatio created for ViT backbone
-# No random imagecropping or resizing
-def make_coco_transforms_ViT(image_size):
-    return T.Compose([
-        T.FixedResize((image_size, image_size), image_size),
-        T.ToTensor(),
-        T.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
-     ])
 
-def make_coco_transforms_ViT_2(image_set, height, width, max=None): # todo check width and height
+def make_coco_transforms_ViT(image_set, width, height, max=None):
 
     normalize = T.Compose([
         T.ToTensor(),
@@ -189,12 +181,12 @@ def make_coco_transforms_ViT_2(image_set, height, width, max=None): # todo check
             T.RandomHorizontalFlip(),
             T.RandomSelect(
                 # T.RandomResize(scales, max_size=1333),
-                T.FixedResize((height, width), max),
+                T.FixedResize((width, height), max),
                 T.Compose([
                     T.RandomResize(scales),
                     T.RandomSizeCrop(384, 600),
                     # T.RandomResize(scales, max_size=1333),
-                    T.FixedResize((height, width), max),
+                    T.FixedResize((width, height), max),
                 ])
             ),
             normalize,
@@ -203,7 +195,7 @@ def make_coco_transforms_ViT_2(image_set, height, width, max=None): # todo check
     if image_set == 'val':
         return T.Compose([
             # T.RandomResize([800], max_size=1333),
-            T.FixedResize((height, width), max),
+            T.FixedResize((width, height), max),
             normalize,
         ])
 
@@ -225,8 +217,7 @@ def build(image_set, args):
         if args.random_image_size:
             dataset = CocoDetection(img_folder, ann_file, transforms=make_coco_transforms(image_set), return_masks=args.masks, aug=args.augment)
         else:
-            #todo widh or height 1st
-            dataset = CocoDetection(img_folder, ann_file, transforms=make_coco_transforms_ViT_2(image_set, args.img_size[0],args.img_size[1], None), return_masks=args.masks, aug=args.augment)
+            dataset = CocoDetection(img_folder, ann_file, transforms=make_coco_transforms_ViT(image_set, args.img_size[1], args.img_size[0], None), return_masks=args.masks, aug=args.augment)
     else:
         dataset = CocoDetection(img_folder, ann_file, transforms=make_coco_transforms(image_set), return_masks=args.masks, aug=args.augment)
 
