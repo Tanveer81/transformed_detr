@@ -175,7 +175,7 @@ def make_coco_transforms_ViT(image_size):
         T.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
      ])
 
-def make_coco_transforms_ViT_2(image_set, height, width, max=None):
+def make_coco_transforms_ViT_2(image_set, height, width, max=None): # todo check width and height
 
     normalize = T.Compose([
         T.ToTensor(),
@@ -184,7 +184,7 @@ def make_coco_transforms_ViT_2(image_set, height, width, max=None):
 
     scales = [480, 512, 544, 576, 608, 640, 672, 704, 736, 768, 800]
 
-    if image_set == 'train':
+    if image_set == 'train': #todo this 384 is final or we sud think more on size
         return T.Compose([
             T.RandomHorizontalFlip(),
             T.RandomSelect(
@@ -222,13 +222,10 @@ def build(image_set, args):
 
     # Use transformer for ViT
     if args.backbone == "ViT":
-        dataset = CocoDetection(img_folder, ann_file, transforms=make_coco_transforms_ViT(vit_image_size), return_masks=args.masks, aug=args.augment)
-
-    elif args.backbone in PRETRAINED_MODELS.keys():
         if args.random_image_size:
             dataset = CocoDetection(img_folder, ann_file, transforms=make_coco_transforms(image_set), return_masks=args.masks, aug=args.augment)
         else:
-            # dataset = CocoDetection(img_folder, ann_file, transforms=make_coco_transforms_ViT_2(image_set, PRETRAINED_MODELS[args.backbone]["image_size"][0]), return_masks=args.masks)
+            #todo widh or height 1st
             dataset = CocoDetection(img_folder, ann_file, transforms=make_coco_transforms_ViT_2(image_set, args.img_size[0],args.img_size[1], None), return_masks=args.masks, aug=args.augment)
     else:
         dataset = CocoDetection(img_folder, ann_file, transforms=make_coco_transforms(image_set), return_masks=args.masks, aug=args.augment)

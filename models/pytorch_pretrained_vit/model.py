@@ -54,7 +54,7 @@ class ViT(nn.Module):
             name: Optional[str] = None,
             pretrained: bool = False,
             position_embedding: str = "sine",  # ('sine', 'learned')
-            weight_path: Optional[str] = None,
+            pretrain_dir: Optional[str] = None,
             detr_compatibility: bool = False,
             patches: int = 16,
             dim: int = 768,
@@ -84,7 +84,7 @@ class ViT(nn.Module):
         self.hierarchy = hierarchy
         self.include_class_token = include_class_token
         self.skip_connection = skip_connection
-        self.weight_path = weight_path
+        self.weight_path = pretrain_dir
         self.detr_compatibility = detr_compatibility
         self.position_embedding = position_embedding
         if name is None:
@@ -150,17 +150,6 @@ class ViT(nn.Module):
                                        include_class_token=self.include_class_token,
                                        hierarchy=self.hierarchy, pool=self.pool, fh=self.fh, fw=self.fw, gh=self.gh, gw=self.gw)
 
-        # todo not needed! Representation layer
-        if representation_size and load_repr_layer:
-            self.pre_logits = nn.Linear(dim, representation_size)
-            pre_logits_size = representation_size
-        else:
-            pre_logits_size = dim
-
-            # Classifier head
-            self.norm = nn.LayerNorm(pre_logits_size, eps=1e-6)
-            self.fc = nn.Linear(pre_logits_size, num_classes)
-
         # Initialize weights
         self.init_weights()
 
@@ -181,8 +170,8 @@ class ViT(nn.Module):
                 resize_positional_embedding=(image_size != pretrained_image_size),
                 old_img=(pretrained_image_size[0] // fh, pretrained_image_size[1] // fw),
                 # original vit 384x384
-                new_img=(gh, gw),
-                rename_deit=deit
+                new_img=(gw, gh),   #todo experiment with height and weight
+                deit=deit
             )
 
     @torch.no_grad()

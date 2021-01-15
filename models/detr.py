@@ -5,7 +5,7 @@ DETR model and criterion classes.
 import torch
 import torch.nn.functional as F
 from torch import nn
-# from torchvision.ops import nms
+from torchvision.ops import nms
 import matplotlib.pyplot as plt
 
 from util import box_ops
@@ -310,7 +310,7 @@ class SetCriterion(nn.Module):
 
 class PostProcess(nn.Module):
     """ This module converts the model's output into the format expected by the coco api"""
-    def __init__(self, use_nms=True):
+    def __init__(self, use_nms=False):
         """ Create the criterion.
         Parameters:
             nms: non maximum supression for detected object
@@ -342,13 +342,13 @@ class PostProcess(nn.Module):
         scale_fct = torch.stack([img_w, img_h, img_w, img_h], dim=1)
         boxes = boxes * scale_fct[:, None, :]
 
-        # if self.use_nms:  # perform NMS
-        #     results = []
-        #     for s, l, b in zip(scores, labels, boxes):
-        #         keep = nms(b, s, iou_threshold=0.5)
-        #         results.append({'scores': s[keep], 'labels': l[keep], 'boxes': b[keep]})
-        # else:
-        results = [{'scores': s, 'labels': l, 'boxes': b} for s, l, b in zip(scores, labels, boxes)]
+        if self.use_nms:  # perform NMS
+            results = []
+            for s, l, b in zip(scores, labels, boxes):
+                keep = nms(b, s, iou_threshold=0.5)
+                results.append({'scores': s[keep], 'labels': l[keep], 'boxes': b[keep]})
+        else:
+            results = [{'scores': s, 'labels': l, 'boxes': b} for s, l, b in zip(scores, labels, boxes)]
 
         return results
 
@@ -392,39 +392,23 @@ def build(args):
     #     args.hidden_dim = PRETRAINED_MODELS[args.backbone]['config']['dim']
 
     if args.backbone == "ViT":
-        args.backbone_name = "ViT"
-        backbone = old_ViT(
-            patch_size=32,
-            # num_classes = 1,
-            # dim, Last dimension of output tensor after linear transformation
-            # nn.Linear(..., dim).
-            dim=args.hidden_dim,
-            depth=6,  # Number of Transformer blocks.
-            heads=8,
-            # mlp_dim = 2048,
-            dropout=0.1,
-            emb_dropout=0.1,
-        )
-
-    elif args.backbone in PRETRAINED_MODELS.keys():
-        args.backbone_name = "ViT"
-        weight_path = f"{args.pretrain_dir}/{args.backbone}.pth" #None if (args.overfit_one_batch or args.resume) else
-        backbone = ViT(args.backbone,
-                        pretrained=args.pretrained_vit,
-                        weight_path=weight_path,
-                        detr_compatibility=True,
-                        position_embedding=args.position_embedding,
-                        image_size=args.img_size,
-                        num_heads=args.vit_heads,
-                        num_layers=args.vit_layer,
-                        include_class_token=args.include_class_token,
-                        skip_connection=args.skip_connection,
-                        hierarchy = args.hierarchy,
-                        pool = args.pool,
-                        deit=args.deit
+        #args.backbone_name = "ViT"
+        backbone = ViT(args.pretrained_model,
+                       pretrained=args.pretrained_vit,
+                       pretrain_dir=args.pretrain_dir,
+                       detr_compatibility=True,
+                       position_embedding=args.position_embedding,
+                       image_size=args.img_size,
+                       num_heads=args.nheads,
+                       num_layers=args.enc_layers,
+                       include_class_token=args.include_class_token,
+                       skip_connection=args.skip_connection,
+                       hierarchy=args.hierarchy,
+                       pool=args.pool,
+                       deit=args.deit
                        )
         # trasformer d_model
-        args.hidden_dim = PRETRAINED_MODELS[args.backbone]['config']['dim']
+        args.hidden_dim = PRETRAINED_MODELS[args.pretrained_model]['config']['dim']
     else:
         args.backbone_name = "resnet"
         backbone = build_backbone(args)

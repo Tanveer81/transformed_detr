@@ -1,6 +1,7 @@
 # Project files
 .idea/*
 runs/*
+exp/*
 
 .nfs*
 *.ipynb

@@ -36,13 +36,15 @@ def get_args_parser():
     parser.add_argument('--pretrained_vit', default=False, action='store_true')
     parser.add_argument('--pretrained_model', default='B_16_imagenet1k', type=str,
                         help="ViT pre-trained model type")
-    parser.add_argument('--pretrain_dir', default='/mnt/data/hannan/.cache/torch/checkpoints',
-                        help='path where to save, empty for no saving')
+    parser.add_argument('--pretrain_dir', default='/nfs/data3/koner/data/checkpoints/vit_detr/B_16_imagenet1k.pth',
+                        help='path to load wight of pre train classification')
     parser.add_argument('--random_image_size', default=False, action='store_true')
     parser.add_argument('--img_width', default=384, type=int)
     parser.add_argument('--img_height', default=384, type=int)
-    parser.add_argument('--vit_heads', default=12, type=int)
-    parser.add_argument('--vit_layer', default=12, type=int)
+    parser.add_argument('--nheads', default=12, type=int,
+                        help="Number of attention heads inside the transformer's attentions")
+    parser.add_argument('--enc_layers', default=12, type=int,
+                        help="Number of encoding layers in the transformer")
     parser.add_argument('--include_class_token', default=False, action='store_true')
     parser.add_argument('--skip_connection', default=False, action='store_true')
     parser.add_argument('--hierarchy', default=False, action='store_true')
@@ -67,7 +69,7 @@ def get_args_parser():
     parser.add_argument('--frozen_weights', type=str, default=None,
                         help="Path to the pretrained model. If set, only the mask head will be trained")
     # * Backbone
-    parser.add_argument('--backbone', default='resnet50', type=str,
+    parser.add_argument('--backbone', default='ViT', type=str,
                         help="Name of the convolutional backbone to use")
     parser.add_argument('--dilation', action='store_true',
                         help="If true, we replace stride with dilation in the last convolutional block (DC5)")
@@ -76,8 +78,6 @@ def get_args_parser():
                         help="Type of positional embedding to use on top of the image features")
 
     # * Transformer
-    parser.add_argument('--enc_layers', default=6, type=int,
-                        help="Number of encoding layers in the transformer")
     parser.add_argument('--dec_layers', default=6, type=int,
                         help="Number of decoding layers in the transformer")
     parser.add_argument('--dim_feedforward', default=2048, type=int,
@@ -86,8 +86,6 @@ def get_args_parser():
                         help="Size of the embeddings (dimension of the transformer)")
     parser.add_argument('--dropout', default=0.1, type=float,
                         help="Dropout applied in the transformer")
-    parser.add_argument('--nheads', default=8, type=int,
-                        help="Number of attention heads inside the transformer's attentions")
     parser.add_argument('--num_queries', default=100, type=int,
                         help="Number of query slots")
     parser.add_argument('--pre_norm', action='store_true')
@@ -138,6 +136,8 @@ def get_args_parser():
                         help='number of distributed processes')
     parser.add_argument('--dist_url', default='env://',
                         help='url used to set up distributed training')
+
+
     return parser
 
 
@@ -443,6 +443,8 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser('DETR training and evaluation script',
                                      parents=[get_args_parser()])
     args = parser.parse_args()
+    if args.deit and args.pretrained_vit:
+        assert 'deit' in args.pretrain_dir, 'for pretraining with deit please load deit checkpoint'
     args.img_size = (args.img_height, args.img_width)
     print(args)
     if not args.output_dir:  # create output dir as per experiment name in exp folder

@@ -20,7 +20,7 @@ def load_pretrained_weights(
     strict=False,
     old_img = None,
     new_img = None,
-    rename_deit=False
+    deit=False
 ):
     """Loads pretrained weights from weights path or download using url.
     Args:
@@ -59,8 +59,9 @@ def load_pretrained_weights(
         state_dict.pop(key)
 
     # Change checkpoint dictionary
-    if rename_deit:
-        num_heads_model = int([n for (n, p) in model.transformer.blocks.named_parameters()][-1].split('.')[0]) + 1
+    if deit:
+        old_img = (14,14)
+        num_heads_model = int([n for (n, p) in model.transformer.blocks.named_parameters()][-1].split('.')[0]) + 1 #todo RK, its not head, its number of layer
         num_heads_state_dict = int((len(state_dict['model']) - 8) / 12)
         if num_heads_model != num_heads_state_dict:
             raise ValueError(f'Pretrained model has different number of heads: {num_heads_state_dict} than defined models heads: {num_heads_model}')
@@ -125,7 +126,7 @@ def as_tuple(x):
     return x if isinstance(x, tuple) else (x, x)
 
 
-def resize_positional_embedding_(posemb, posemb_new, has_class_token=True, gs_old=[24,24], gs_new=[38,50]):
+def resize_positional_embedding_(posemb, posemb_new, has_class_token=True, gs_old=[24,24], gs_new=[38,50]): #todo exp wd width and height mayb mispalced
     """Rescale the grid of position embeddings in a sensible manner"""
     from scipy.ndimage import zoom
 
@@ -140,11 +141,16 @@ def resize_positional_embedding_(posemb, posemb_new, has_class_token=True, gs_ol
     # Get old and new grid sizes
     posemb_grid = posemb_grid.reshape(gs_old[0], gs_old[1], -1)
 
-    # Rescale grid
-    zoom_factor = (gs_new[0] / gs_old[0], gs_new[1] / gs_old[1], 1)
-    posemb_grid = zoom(posemb_grid, zoom_factor, order=1)
-    posemb_grid = posemb_grid.reshape(1, gs_new[0]*gs_new[1], -1)
-    posemb_grid = torch.from_numpy(posemb_grid)
+    #todo experiment with gs 0 and 1 wht is width and height
+    if False: # Rescale grid wd zoom
+        zoom_factor = (gs_new[0] / gs_old[0], gs_new[1] / gs_old[1], 1)
+        posemb_grid = zoom(posemb_grid, zoom_factor, order=1)
+        posemb_grid = posemb_grid.reshape(1, gs_new[0]*gs_new[1], -1)
+        posemb_grid = torch.from_numpy(posemb_grid)
+    else :
+        posemb = torch.unsqueeze(posemb_grid.permute(2, 0, 1),dim =0)
+        pos_emb = torch.nn.functional.interpolate(posemb, size=(gs_new[0], gs_new[1]), mode='bicubic', align_corners=False)
+        posemb_grid = pos_emb.permute(0,2,3,1).flatten(1,2)
 
     # Deal with class token and return
     posemb = torch.cat([posemb_tok, posemb_grid], dim=1)
