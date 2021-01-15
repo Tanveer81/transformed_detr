@@ -228,8 +228,8 @@ def main(args):
         else:
             checkpoint = torch.load(args.resume, map_location='cpu')
             # If we want to transfer learn on new image size, we need to resize positional embedding of ViT
-            if args.backbone in PRETRAINED_MODELS.keys():
-                pretrained_image_size = PRETRAINED_MODELS[args.backbone]['image_size']
+            if args.pretrained_model in PRETRAINED_MODELS.keys():
+                pretrained_image_size = PRETRAINED_MODELS[args.pretrained_model]['image_size']
                 if args.img_size != pretrained_image_size:
                     old_img = (pretrained_image_size[0] // model_without_ddp.backbone.fh, pretrained_image_size[1] // model_without_ddp.backbone.fw),
                     new_img = (model_without_ddp.backbone.gh, model_without_ddp.backbone.gw)
@@ -374,7 +374,7 @@ def inference(args=None, resume='', skip_connection=False, img_width=384, img_he
     args.skip_connection = skip_connection
     args.pretrained_vit = True
     args.pretrain_dir = '/nfs/data3/koner/data/checkpoints/vit_detr/'
-    args.backbone = 'B_16_imagenet1k'
+    args.pretrained_model = 'B_16_imagenet1k'
 
     utils.init_distributed_mode(args)
     print("git:\n  {}\n".format(utils.get_sha()))
