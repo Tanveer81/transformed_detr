@@ -61,7 +61,7 @@ def load_pretrained_weights(
     # Change checkpoint dictionary
     if deit:
         old_img = (14,14) #TODO: check if not needed
-        num_layers_model = int([n for (n, p) in model.transformer.blocks.named_parameters()][-1].split('.')[0]) + 1 #todo RK, its not head, its number of layer
+        num_layers_model = int([n for (n, p) in model.transformer.blocks.named_parameters()][-1].split('.')[0]) + 1
         num_layers_state_dict = int((len(state_dict['model']) - 8) / 12)
         if num_layers_model != num_layers_state_dict:
             raise ValueError(f'Pretrained model has different number of layers: {num_layers_state_dict} than defined models layers: {num_layers_model}')

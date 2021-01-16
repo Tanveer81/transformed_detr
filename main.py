@@ -230,8 +230,10 @@ def main(args):
             # If we want to transfer learn on new image size, we need to resize positional embedding of ViT
             if args.pretrained_model in PRETRAINED_MODELS.keys():
                 pretrained_image_size = PRETRAINED_MODELS[args.pretrained_model]['image_size']
-                if args.img_size != pretrained_image_size:
-                    old_img = (pretrained_image_size[0] // model_without_ddp.backbone.fh, pretrained_image_size[1] // model_without_ddp.backbone.fw),
+                # if args.img_size != pretrained_image_size:
+                if args.img_size != (checkpoint['args'].img_width, checkpoint['args'].img_height):
+                    # old_img = (pretrained_image_size[0] // model_without_ddp.backbone.fh, pretrained_image_size[1] // model_without_ddp.backbone.fw),
+                    old_img = (checkpoint['args'].img_width // model_without_ddp.backbone.fh, checkpoint['args'].img_height // model_without_ddp.backbone.fw),
                     new_img = (model_without_ddp.backbone.gh, model_without_ddp.backbone.gw)
                     posemb = checkpoint['model']['backbone.positional_embedding.pos_embedding']
                     posemb_new = model_without_ddp.state_dict()['backbone.positional_embedding.pos_embedding']
