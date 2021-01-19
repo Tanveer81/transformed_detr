@@ -60,7 +60,7 @@ def load_pretrained_weights(
 
     # Change checkpoint dictionary
     if deit:
-        old_img = (14,14) #TODO: check if not needed
+        old_img = (24,24) #TODO: check if not needed
         num_layers_model = int([n for (n, p) in model.transformer.blocks.named_parameters()][-1].split('.')[0]) + 1
         num_layers_state_dict = int((len(state_dict['model']) - 8) / 12)
         if num_layers_model != num_layers_state_dict:
@@ -97,6 +97,7 @@ def load_pretrained_weights(
     if resize_positional_embedding: 
         posemb = state_dict['positional_embedding.pos_embedding']
         posemb_new = model.state_dict()['positional_embedding.pos_embedding']
+        print(posemb_new.shape)
         state_dict['positional_embedding.pos_embedding'] = \
             resize_positional_embedding_(posemb=posemb, posemb_new=posemb_new, 
                 has_class_token=hasattr(model, 'class_token'),gs_old = old_img, gs_new = new_img)
@@ -133,7 +134,7 @@ def resize_positional_embedding_(posemb, posemb_new, has_class_token=True, gs_ol
     # Deal with class token
     ntok_new = posemb_new.shape[1]
     if has_class_token:  # this means classifier == 'token'
-        posemb_tok, posemb_grid = posemb[:, :1], posemb[0, 1:]
+        posemb_tok, posemb_grid = posemb[:, :1], posemb[0, 2:]
         ntok_new -= 1
     else:
         posemb_tok, posemb_grid = posemb[:, :0], posemb[0]
@@ -154,6 +155,7 @@ def resize_positional_embedding_(posemb, posemb_new, has_class_token=True, gs_ol
 
     # Deal with class token and return
     posemb = torch.cat([posemb_tok, posemb_grid], dim=1)
+    print(posemb.shape)
     return posemb
 
 
