@@ -169,8 +169,6 @@ def num_ps(qs, ks, vs, init_sums, on_parallel):
         R = torch.cumsum(R, 0)
 
     R = R + init_sums[None, Ellipsis]
-    int_=torch.einsum('sijkl,sijk->sijl', R, qs)
-    print(int_.dtype, torch.min(int_), torch.max(int_))
     return torch.einsum('sijkl,sijk->sijl', R, qs), R[-1]
 
 

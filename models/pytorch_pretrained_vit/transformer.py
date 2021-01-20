@@ -342,7 +342,6 @@ class Transformer(nn.Module):
             residual_connections = []
             for i, block in zip(range(len(self.blocks)), self.blocks):
                 x = block(x, mask)
-                # print('block number:', i, 'Min:', torch.min(x), 'Max:', torch.max(x))
                 if i in [2, 5, 8]:
                     residual_connections.append(x)
 
