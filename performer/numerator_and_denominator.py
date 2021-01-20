@@ -88,7 +88,7 @@ num_iter = _NumIter.apply
 
 
 class _DenIter(torch.autograd.Function):
-    """Custom gradient for denominator computation in prefix sum."""
+  """Custom gradient for denominator computation in prefix sum."""
 
     @staticmethod
     def forward(ctx, qs, ks, sums):
@@ -169,8 +169,6 @@ def num_ps(qs, ks, vs, init_sums, on_parallel):
         R = torch.cumsum(R, 0)
 
     R = R + init_sums[None, Ellipsis]
-    int_=torch.einsum('sijkl,sijk->sijl', R, qs)
-    print(int_.dtype, torch.min(int_), torch.max(int_))
     return torch.einsum('sijkl,sijk->sijl', R, qs), R[-1]
 
 
@@ -195,7 +193,7 @@ def den_reverse_sums_ps(qs, ks, final_sums):
 
 
 def prefix_sum(x):
-    """Computes prefix sum for autoregressive mode."""
+  """Computes prefix sum for autoregressive mode."""
     if x.shape[0] == 1:
         return x
 

@@ -28,7 +28,7 @@ def merge_last(x, n_dims):
 
 class MultiHeadedSelfAttention(nn.Module):
     """Multi-Headed Dot Product Attention"""
-    def __init__(self, dim, num_heads, dropout, feature_type='favor+', compute_type='iter'):
+    def __init__(self, dim, num_heads, dropout, feature_type='favor+', compute_type='ps'):
         super().__init__()
         self.proj_q = nn.Linear(dim, dim)
         self.proj_k = nn.Linear(dim, dim)
@@ -341,6 +341,7 @@ class Transformer(nn.Module):
             residual_connections = []
             for i, block in zip(range(len(self.blocks)), self.blocks):
                 x = block(x, mask)
+                print('block number:', i, 'Min:', torch.min(x), 'Max:', torch.max(x))
                 if i in [2, 5, 8]:
                     residual_connections.append(x)
 

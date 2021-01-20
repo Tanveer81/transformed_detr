@@ -108,4 +108,10 @@ PRETRAINED_MODELS = {
         'image_size': (224, 224),
         'url': "https://dl.fbaipublicfiles.com/deit/deit_base_patch16_224-b5f2ef4d.pth"
     },
+    'deit_base_distilled_patch16_384-d0272ac0': {
+        'config': drop_head_variant(get_b16_config()), #TODO: check valid config
+        'num_classes': 1000,
+        'image_size': (384, 384),
+        'url': "https://dl.fbaipublicfiles.com/deit/deit_base_distilled_patch16_384-d0272ac0.pth"
+    },
 }
