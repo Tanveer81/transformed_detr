@@ -100,11 +100,13 @@ def load_pretrained_weights(
         print(posemb_new.shape)
         state_dict['positional_embedding.pos_embedding'] = \
             resize_positional_embedding_(posemb=posemb, posemb_new=posemb_new, 
-                has_class_token=hasattr(model, 'class_token'),gs_old = old_img, gs_new = new_img)
+                has_class_token=hasattr(model, 'class_token'),gs_old = old_img, gs_new = new_img, distilled_token=model.distilled)
         maybe_print('Resized positional embeddings from {} to {}'.format(
                     posemb.shape, posemb_new.shape), verbose)
+    # if model.distilled:
+    #     state_dict['positional_embedding.pos_embedding'] = state_dict['positional_embedding.pos_embedding'][:]
 
-    # Load state dict
+        # Load state dict
     ret = model.load_state_dict(state_dict, strict=False)
     if strict:
         assert set(ret.missing_keys) == set(expected_missing_keys), \
@@ -127,14 +129,17 @@ def as_tuple(x):
     return x if isinstance(x, tuple) else (x, x)
 
 
-def resize_positional_embedding_(posemb, posemb_new, has_class_token=True, gs_old=[24,24], gs_new=[38,50]): #todo exp wd width and height mayb mispalced
+def resize_positional_embedding_(posemb, posemb_new, has_class_token=True, gs_old=[24,24], gs_new=[38,50], distilled_token=False): #todo exp wd width and height mayb mispalced
     """Rescale the grid of position embeddings in a sensible manner"""
     from scipy.ndimage import zoom
 
     # Deal with class token
     ntok_new = posemb_new.shape[1]
     if has_class_token:  # this means classifier == 'token'
-        posemb_tok, posemb_grid = posemb[:, :1], posemb[0, 2:]
+        if distilled_token:
+            posemb_tok, posemb_grid = posemb[:, :1], posemb[0, 2:]
+        else:
+            posemb_tok, posemb_grid = posemb[:, :1], posemb[0, 1:]
         ntok_new -= 1
     else:
         posemb_tok, posemb_grid = posemb[:, :0], posemb[0]

@@ -23,7 +23,7 @@ class Transformer(nn.Module):
     def __init__(self, d_model=512, nhead=8, num_encoder_layers=6,
                  num_decoder_layers=6, dim_feedforward=2048, dropout=0.1,
                  activation="relu", normalize_before=False,
-                 return_intermediate_dec=False, backbone_name = 'resnet'):
+                 return_intermediate_dec=False, backbone_name = 'resnet', cross_first=False):
         super().__init__()
 
         # In case of ViT backbone, self.backbone changes to "ViT" from detr
@@ -36,7 +36,7 @@ class Transformer(nn.Module):
             self.encoder = TransformerEncoder(encoder_layer, num_encoder_layers, encoder_norm)
 
         decoder_layer = TransformerDecoderLayer(d_model, nhead, dim_feedforward,
-                                                dropout, activation, normalize_before)
+                                                dropout, activation, normalize_before,cross_first)
         decoder_norm = nn.LayerNorm(d_model)
         self.decoder = TransformerDecoder(decoder_layer, num_decoder_layers, decoder_norm,
                                           return_intermediate=return_intermediate_dec)
@@ -53,7 +53,7 @@ class Transformer(nn.Module):
 
     def forward(self, src, mask, query_embed, pos_embed):
 
-        if self.backbone == "resnet":
+        if self.backbone == "resnet":  #todo remove
             # flatten NxCxHxW to HWxNxC
             bs, c, h, w = src.shape
             src = src.flatten(2).permute(2, 0, 1)
@@ -213,8 +213,9 @@ class TransformerEncoderLayer(nn.Module):
 class TransformerDecoderLayer(nn.Module):
 
     def __init__(self, d_model, nhead, dim_feedforward=2048, dropout=0.1,
-                 activation="relu", normalize_before=False):
+                 activation="relu", normalize_before=False, cross_first=False):
         super().__init__()
+        self.cross_first=cross_first
         self.self_attn = nn.MultiheadAttention(d_model, nhead, dropout=dropout)
         self.multihead_attn = nn.MultiheadAttention(d_model, nhead, dropout=dropout)
         # Implementation of Feedforward model
@@ -242,17 +243,25 @@ class TransformerDecoderLayer(nn.Module):
                      memory_key_padding_mask: Optional[Tensor] = None,
                      pos: Optional[Tensor] = None,
                      query_pos: Optional[Tensor] = None):
-        q = k = self.with_pos_embed(tgt, query_pos)
+        if self.cross_first: # 1st aplly decoder to all image attn
+            tgt2 = self.multihead_attn(query=self.with_pos_embed(tgt, query_pos),
+                                       key=self.with_pos_embed(memory, pos),
+                                       value=memory, attn_mask=memory_mask,
+                                       key_padding_mask=memory_key_padding_mask)[0]
+            tgt = tgt + self.dropout2(tgt2)
+            tgt = self.norm2(tgt)
+        q = k = self.with_pos_embed(tgt, query_pos) #tgt if self.cross_first else  todo experiment wdout pos emebeding as for cross attn its already done earlier
         tgt2 = self.self_attn(q, k, value=tgt, attn_mask=tgt_mask,
                               key_padding_mask=tgt_key_padding_mask)[0]
         tgt = tgt + self.dropout1(tgt2)
         tgt = self.norm1(tgt)
-        tgt2 = self.multihead_attn(query=self.with_pos_embed(tgt, query_pos),
-                                   key=self.with_pos_embed(memory, pos),
-                                   value=memory, attn_mask=memory_mask,
-                                   key_padding_mask=memory_key_padding_mask)[0]
-        tgt = tgt + self.dropout2(tgt2)
-        tgt = self.norm2(tgt)
+        if not self.cross_first:
+            tgt2 = self.multihead_attn(query=self.with_pos_embed(tgt, query_pos),
+                                       key=self.with_pos_embed(memory, pos),
+                                       value=memory, attn_mask=memory_mask,
+                                       key_padding_mask=memory_key_padding_mask)[0]
+            tgt = tgt + self.dropout2(tgt2)
+            tgt = self.norm2(tgt)
         tgt2 = self.linear2(self.dropout(self.activation(self.linear1(tgt))))
         tgt = tgt + self.dropout3(tgt2)
         tgt = self.norm3(tgt)
@@ -287,7 +296,7 @@ class TransformerDecoderLayer(nn.Module):
                 tgt_key_padding_mask: Optional[Tensor] = None,
                 memory_key_padding_mask: Optional[Tensor] = None,
                 pos: Optional[Tensor] = None,
-                query_pos: Optional[Tensor] = None):
+                query_pos: Optional[Tensor] = None,):
         if self.normalize_before:
             return self.forward_pre(tgt, memory, tgt_mask, memory_mask,
                                     tgt_key_padding_mask, memory_key_padding_mask, pos, query_pos)
@@ -310,7 +319,8 @@ def build_transformer(args):
         normalize_before=args.pre_norm,
         return_intermediate_dec=True,
         backbone_name=args.pretrained_model,
-        activation="gelu"
+        activation="gelu",
+        cross_first = args.cross_first
     )
 
 

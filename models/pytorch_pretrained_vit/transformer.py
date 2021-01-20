@@ -156,7 +156,7 @@ class MultiHeadedSelfAttention(nn.Module):
         queries = self.proj_q(inputs)
         keys = self.proj_k(inputs)
         values = self.proj_v(inputs)
-        print(queries.shape)
+        # print(queries.shape)
 
         queries = queries.reshape(
             [queries.shape[0], queries.shape[1], self._n_heads, -1])
@@ -342,7 +342,7 @@ class Transformer(nn.Module):
             residual_connections = []
             for i, block in zip(range(len(self.blocks)), self.blocks):
                 x = block(x, mask)
-                print('block number:', i, 'Min:', torch.min(x), 'Max:', torch.max(x))
+                # print('block number:', i, 'Min:', torch.min(x), 'Max:', torch.max(x))
                 if i in [2, 5, 8]:
                     residual_connections.append(x)
 

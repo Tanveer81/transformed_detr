@@ -89,6 +89,7 @@ def get_args_parser():
     parser.add_argument('--num_queries', default=100, type=int,
                         help="Number of query slots")
     parser.add_argument('--pre_norm', action='store_true')
+    parser.add_argument('--cross_first', action='store_true', help='apply corss attn then self attn on decoder')
 
     # * Segmentation
     parser.add_argument('--masks', action='store_true',
@@ -143,7 +144,7 @@ def get_args_parser():
 
 def main(args):
     # wandb.login()
-    os.environ["CUDA_VISIBLE_DEVICES"] = "2,3,4,5"
+    #os.environ["CUDA_VISIBLE_DEVICES"] = "2,3,4,5"
     utils.init_distributed_mode(args)
     print("git:\n  {}\n".format(utils.get_sha()))
 

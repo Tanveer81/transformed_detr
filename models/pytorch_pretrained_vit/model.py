@@ -11,23 +11,24 @@ from torch.nn import functional as F
 from .transformer import Transformer
 from .utils import load_pretrained_weights, as_tuple
 from .configs import PRETRAINED_MODELS
-# from positional_encodings import PositionalEncodingPermute2D
+from positional_encodings import PositionalEncodingPermute2D
 
 
 class PositionalEmbedding1D(nn.Module):
     """Adds (optionally learned) positional embeddings to the inputs."""
 
-    def __init__(self, seq_len, dim, include_class_token=True):
+    def __init__(self, seq_len, dim, include_class_token=True, distilled=False):
         super().__init__()
         self.include_class_token = include_class_token
         self.pos_embedding = nn.Parameter(torch.zeros(1, seq_len, dim))
+        self.distilled = distilled
 
     def forward(self, x):
         """Input has shape `(batch_size, seq_len, emb_dim)`"""
-
+        if self.distilled:
+            return x + self.pos_embedding[:, 2:, :]
         if self.include_class_token:
             return x + self.pos_embedding
-
         # else removed class token
         return x + self.pos_embedding[:, 1:, :]
 
@@ -66,7 +67,7 @@ class ViT(nn.Module):
             representation_size: Optional[int] = None,
             load_repr_layer: bool = False,
             classifier: str = 'token',
-            positional_embedding: str = '1d',
+            # positional_embedding: str = '1d',
             in_channels: int = 3,
             image_size: Optional[tuple] = (608, 800),
             num_classes: Optional[int] = None,
@@ -74,7 +75,7 @@ class ViT(nn.Module):
             skip_connection: bool = False,
             hierarchy: bool = False,
             pool: str = None,
-            deit:bool = False
+            deit:bool = False,
     ):
 
         super().__init__()
@@ -133,13 +134,19 @@ class ViT(nn.Module):
         if classifier == 'token':
             self.class_token = nn.Parameter(torch.zeros(1, 1, dim))
             seq_len += 1
+        if 'distilled' in name:
+            self.distilled = True
+            self.distilled_token =  nn.Parameter(torch.zeros(1,1,dim))
+            seq_len += 1
+        else :
+            self.distilled = False
 
         # Positional embedding
-        self.positional_embedding_type = positional_embedding
-        if positional_embedding.lower() == '1d':
-            self.positional_embedding = PositionalEmbedding1D(seq_len, dim, self.include_class_token)
+        # self.positional_embedding_type = positional_embedding
+        if position_embedding.lower() == '1d':
+            self.positional_embedding = PositionalEmbedding1D(seq_len, dim, self.include_class_token, self.distilled)
         else:
-            self.positional_embedding = PositionalEmbedding1D(seq_len, dim, self.include_class_token)
+            self.positional_embedding = PositionalEmbedding1D(seq_len, dim, self.include_class_token, self.distilled)
             self.positional_embedding_2d = PositionalEncodingPermute2D(dim)
 
         # Transformer
@@ -167,11 +174,11 @@ class ViT(nn.Module):
                 load_first_conv=(in_channels == pretrained_num_channels),
                 load_fc=(num_classes == pretrained_num_classes),
                 load_repr_layer=load_repr_layer,
-                resize_positional_embedding=True, #(image_size != pretrained_image_size)
+                resize_positional_embedding=(image_size != pretrained_image_size),
                 old_img=(pretrained_image_size[0] // fh, pretrained_image_size[1] // fw),
                 # original vit 384x384
                 new_img=(gh, gw),   #todo experiment with height and weight
-                deit=deit
+                deit=deit,
             )
 
     @torch.no_grad()
@@ -184,7 +191,7 @@ class ViT(nn.Module):
                     nn.init.normal_(m.bias, std=1e-6)  # nn.init.constant(m.bias, 0)
 
         self.apply(_init)
-        if not self.detr_compatibility:
+        if not self.detr_compatibility: #todo not required , only for vision transformer
             nn.init.constant_(self.fc.weight, 0)
             nn.init.constant_(self.fc.bias, 0)
         nn.init.normal_(self.positional_embedding.pos_embedding,
@@ -212,9 +219,12 @@ class ViT(nn.Module):
         if hasattr(self, 'class_token') and self.include_class_token:
             pos = self.positional_embedding.pos_embedding
         else:
-            pos = self.positional_embedding.pos_embedding[:, 1:, :]
+            if self.distilled:
+                pos = self.positional_embedding.pos_embedding[:, 2:, :]
+            else:
+                pos = self.positional_embedding.pos_embedding[:, 1:, :]
         x = self.transformer(x, pos)  # b,gh*gw+1,d
-        if self.positional_embedding_type.lower() == '2d':
+        if self.position_embedding.lower() == '2d':
             pos_embed_2d = self.positional_embedding_2d(x.permute(0, 2, 1)[:, :, :x.shape[1]].reshape(x.shape[0], x.shape[2], int(math.sqrt(x.shape[1])), int(math.sqrt(x.shape[1]))))
             pos_embed_2d = pos_embed_2d.reshape([pos_embed_2d.shape[0], pos_embed_2d.shape[1], -1]).permute(0, 2, 1)
             x = x + pos_embed_2d
@@ -223,7 +233,9 @@ class ViT(nn.Module):
             # if self.position_embedding == "sine":
             #     return x, PositionEmbeddingSine(self.dim/2, normalize=True)
             # else:
-            if self.positional_embedding_type.lower() == '1d':
+            if self.position_embedding.lower() == '1d':
+                if self.distilled:
+                    return x, self.positional_embedding.pos_embedding[:, 2:, :]
                 if self.include_class_token:
                     return x, self.positional_embedding.pos_embedding
                 return x, self.positional_embedding.pos_embedding[:, 1:, :]
