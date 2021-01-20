@@ -137,7 +137,7 @@ def resize_positional_embedding_(posemb, posemb_new, has_class_token=True, gs_ol
     ntok_new = posemb_new.shape[1]
     if has_class_token:  # this means classifier == 'token'
         if distilled_token:
-            posemb_tok, posemb_grid = posemb[:, :1], posemb[0, 2:]
+            posemb_tok, posemb_grid = posemb[:, :2], posemb[0, 2:]
         else:
             posemb_tok, posemb_grid = posemb[:, :1], posemb[0, 1:]
         ntok_new -= 1
