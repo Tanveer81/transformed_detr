@@ -66,6 +66,7 @@ def load_pretrained_weights(
         if num_layers_model != num_layers_state_dict:
             raise ValueError(f'Pretrained model has different number of layers: {num_layers_state_dict} than defined models layers: {num_layers_model}')
         state_dict['class_token'] = state_dict['model'].pop('cls_token')
+        state_dict['distilled_token'] = state_dict['model'].pop('dist_token')
         state_dict['positional_embedding.pos_embedding'] = state_dict['model'].pop('pos_embed')
         state_dict['patch_embedding.weight'] = state_dict['model'].pop('patch_embed.proj.weight')
         state_dict['patch_embedding.bias'] = state_dict['model'].pop('patch_embed.proj.bias')

@@ -86,27 +86,8 @@ class DETR(nn.Module):
             if self.backbone.position_embedding == "learned":
                 pos = pos.expand(src.shape[0], pos.shape[1], pos.shape[2])
 
-            # @supro
-            # h, w = self.imsize
-            # # print('POS Size', self.imsize)
-            # h_ = int(h / 16)
-            # w_ = int(w / 16)
-            # # plt.figure(figsize=(5,20))
-            # # plt.imshow(pos[0,:,:].data.cpu().numpy())
-            # # plt.show()
-            # token = pos[:, 0:1, :]
-            # img = torch.reshape(pos[:, 1:, :].transpose(1, 2),(pos.shape[0], pos.shape[2], h_, w_)).contiguous()
-            # pos = -torch.reshape(-self.pool(img), (pos.shape[0], pos.shape[2], -1)).transpose(1, 2)
-            # # plt.figure(figsize=(5,5))
-            # # plt.imshow(pos[0,:,:].data.cpu().numpy())
-            # # plt.show()
-            # pos = torch.cat([token, pos], 1).contiguous()
-            # # pos = pos[:,::4,:][:,0:src.shape[1],:]
-            # # print(pos.shape)
-            # mask = torch.ones(src.shape[0], src.shape[2]).bool()
             mask = None
             # In case of ViT DETR transformer would not include encoder
-
             hs = self.transformer(src, mask, self.query_embed.weight, pos)
 
         else:
