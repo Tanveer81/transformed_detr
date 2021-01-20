@@ -97,6 +97,7 @@ def load_pretrained_weights(
     if resize_positional_embedding: 
         posemb = state_dict['positional_embedding.pos_embedding']
         posemb_new = model.state_dict()['positional_embedding.pos_embedding']
+        print(posemb_new.shape)
         state_dict['positional_embedding.pos_embedding'] = \
             resize_positional_embedding_(posemb=posemb, posemb_new=posemb_new, 
                 has_class_token=hasattr(model, 'class_token'),gs_old = old_img, gs_new = new_img)
@@ -154,6 +155,7 @@ def resize_positional_embedding_(posemb, posemb_new, has_class_token=True, gs_ol
 
     # Deal with class token and return
     posemb = torch.cat([posemb_tok, posemb_grid], dim=1)
+    print(posemb.shape)
     return posemb
 
 

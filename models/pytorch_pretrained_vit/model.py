@@ -167,7 +167,7 @@ class ViT(nn.Module):
                 load_first_conv=(in_channels == pretrained_num_channels),
                 load_fc=(num_classes == pretrained_num_classes),
                 load_repr_layer=load_repr_layer,
-                resize_positional_embedding=(image_size != pretrained_image_size),
+                resize_positional_embedding=True, #(image_size != pretrained_image_size)
                 old_img=(pretrained_image_size[0] // fh, pretrained_image_size[1] // fw),
                 # original vit 384x384
                 new_img=(gh, gw),   #todo experiment with height and weight

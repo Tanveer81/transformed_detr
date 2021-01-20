@@ -7,7 +7,7 @@ import torch
 from torch import nn
 from torch import Tensor 
 from torch.nn import functional as F
-import models.pytorch_pretrained_vit.numerator_and_denominator as num_and_den
+from .numerator_and_denominator import *
 
 
 def split_last(x, shape):
@@ -28,7 +28,7 @@ def merge_last(x, n_dims):
 
 class MultiHeadedSelfAttention(nn.Module):
     """Multi-Headed Dot Product Attention"""
-    def __init__(self, dim, num_heads, dropout, feature_type='favor+', compute_type='ps'):
+    def __init__(self, dim, num_heads, dropout, feature_type='classical', compute_type='ps'):
         super().__init__()
         self.proj_q = nn.Linear(dim, dim)
         self.proj_k = nn.Linear(dim, dim)
@@ -71,14 +71,14 @@ class MultiHeadedSelfAttention(nn.Module):
             num_sums, den_sums = self.init_sums(x.device)
 
             if self._compute_type == 'iter':
-                num, _ = num_and_den.num_iter(queries, keys, values, num_sums)
-                den, _ = num_and_den.den_iter(queries, keys, den_sums)
+                num, _ = num_iter(queries, keys, values, num_sums)
+                den, _ = den_iter(queries, keys, den_sums)
             elif self._compute_type == 'ps':
-                num, _ = num_and_den.num_ps(queries, keys, values, num_sums, False)
-                den, _ = num_and_den.den_ps(queries, keys, den_sums, False)
+                num, _ = num_ps(queries, keys, values, num_sums, False)
+                den, _ = den_ps(queries, keys, den_sums, False)
             else:
-                num, _ = num_and_den.num_ps(queries, keys, values, num_sums, True)
-                den, _ = num_and_den.den_ps(queries, keys, den_sums, True)
+                num, _ = num_ps(queries, keys, values, num_sums, True)
+                den, _ = den_ps(queries, keys, den_sums, True)
 
             num = torch.transpose(num, 0, 1)
             den = torch.transpose(den, 0, 1)
@@ -114,13 +114,13 @@ class MultiHeadedSelfAttention(nn.Module):
                 num_sums = torch.zeros_like(num_sums)
                 den_sums = torch.zeros_like(den_sums)
             elif self._compute_type == 'iter':
-                num_sums = num_and_den.num_reverse_sums_iter(queries, keys, values,
+                num_sums = num_reverse_sums_iter(queries, keys, values,
                                                                 num_sums)
-                den_sums = num_and_den.den_reverse_sums_iter(queries, keys, den_sums)
+                den_sums = den_reverse_sums_iter(queries, keys, den_sums)
             else:
-                num_sums = num_and_den.num_reverse_sums_ps(queries, keys, values,
+                num_sums = num_reverse_sums_ps(queries, keys, values,
                                                             num_sums)
-                den_sums = num_and_den.den_reverse_sums_ps(queries, keys, den_sums)
+                den_sums = den_reverse_sums_ps(queries, keys, den_sums)
 
             num_sums = num_sums.detach().clone()
             num_sums.requires_grad = True
@@ -131,14 +131,14 @@ class MultiHeadedSelfAttention(nn.Module):
             init_den_sums = den_sums
 
         if self._compute_type == 'iter':
-            num, num_sums = num_and_den.num_iter(queries, keys, values, num_sums)
-            den, den_sums = num_and_den.den_iter(queries, keys, den_sums)
+            num, num_sums = num_iter(queries, keys, values, num_sums)
+            den, den_sums = den_iter(queries, keys, den_sums)
         elif self._compute_type == 'ps':
-            num, num_sums = num_and_den.num_ps(queries, keys, values, num_sums, False)
-            den, den_sums = num_and_den.den_ps(queries, keys, den_sums, False)
+            num, num_sums = num_ps(queries, keys, values, num_sums, False)
+            den, den_sums = den_ps(queries, keys, den_sums, False)
         else:
-            num, num_sums = num_and_den.num_ps(queries, keys, values, num_sums, True)
-            den, den_sums = num_and_den.den_ps(queries, keys, den_sums, True)
+            num, num_sums = num_ps(queries, keys, values, num_sums, True)
+            den, den_sums = den_ps(queries, keys, den_sums, True)
 
         num = torch.transpose(num, 0, 1)
         den = torch.transpose(den, 0, 1)
@@ -156,6 +156,7 @@ class MultiHeadedSelfAttention(nn.Module):
         queries = self.proj_q(inputs)
         keys = self.proj_k(inputs)
         values = self.proj_v(inputs)
+        print(queries.shape)
 
         queries = queries.reshape(
             [queries.shape[0], queries.shape[1], self._n_heads, -1])
