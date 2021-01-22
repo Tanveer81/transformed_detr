@@ -179,6 +179,7 @@ class ViT(nn.Module):
                 # original vit 384x384
                 new_img=(gh, gw),   #todo experiment with height and weight
                 deit=deit,
+                distilled = self.distilled
             )
 
     @torch.no_grad()
