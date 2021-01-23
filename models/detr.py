@@ -55,7 +55,6 @@ class DETR(nn.Module):
         self.aux_loss = aux_loss
         self.imsize = imsize
 
-
     def forward(self, samples: NestedTensor):
         """ The forward expects a NestedTensor, which consists of:
                - samples.tensor: batched images, of shape [batch_size x 3 x H x W]
@@ -389,7 +388,12 @@ def build(args):
                        deit=args.deit
                        )
         # trasformer d_model
-        args.hidden_dim = PRETRAINED_MODELS[args.pretrained_model]['config']['dim']
+        if args.pretrained_detr:
+            args.hid_dim_old = PRETRAINED_MODELS[args.pretrained_model]['config']['dim']
+            args.nheads = 8
+        else:
+            args.hidden_dim = PRETRAINED_MODELS[args.pretrained_model]['config']['dim']
+            #TODO: should we keep this args.nheads = 8
     else:
         args.backbone_name = "resnet"
         backbone = build_backbone(args)
