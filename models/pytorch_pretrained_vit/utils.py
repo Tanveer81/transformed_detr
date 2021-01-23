@@ -20,7 +20,8 @@ def load_pretrained_weights(
     strict=False,
     old_img = None,
     new_img = None,
-    deit=False
+    deit=False,
+    distilled =False,
 ):
     """Loads pretrained weights from weights path or download using url.
     Args:
@@ -66,7 +67,8 @@ def load_pretrained_weights(
         if num_layers_model != num_layers_state_dict:
             raise ValueError(f'Pretrained model has different number of layers: {num_layers_state_dict} than defined models layers: {num_layers_model}')
         state_dict['class_token'] = state_dict['model'].pop('cls_token')
-        state_dict['distilled_token'] = state_dict['model'].pop('dist_token')
+        if distilled:
+            state_dict['distilled_token'] = state_dict['model'].pop('dist_token')
         state_dict['positional_embedding.pos_embedding'] = state_dict['model'].pop('pos_embed')
         state_dict['patch_embedding.weight'] = state_dict['model'].pop('patch_embed.proj.weight')
         state_dict['patch_embedding.bias'] = state_dict['model'].pop('patch_embed.proj.bias')
@@ -101,7 +103,7 @@ def load_pretrained_weights(
         print(posemb_new.shape)
         state_dict['positional_embedding.pos_embedding'] = \
             resize_positional_embedding_(posemb=posemb, posemb_new=posemb_new, 
-                has_class_token=hasattr(model, 'class_token'),gs_old = old_img, gs_new = new_img, distilled_token=model.distilled)
+                has_class_token=hasattr(model, 'class_token'),gs_old = old_img, gs_new = new_img, distilled_token=distilled)
         maybe_print('Resized positional embeddings from {} to {}'.format(
                     posemb.shape, posemb_new.shape), verbose)
     # if model.distilled:
