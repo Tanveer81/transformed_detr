@@ -2,12 +2,14 @@
 """
 DETR model and criterion classes.
 """
+import numpy as np
 import torch
 import torch.nn.functional as F
 from torch import nn
 from torchvision.ops import nms
 import matplotlib.pyplot as plt
 
+from timm import create_model
 from util import box_ops
 from util.misc import (NestedTensor, nested_tensor_from_tensor_list,
                        accuracy, get_world_size, interpolate,
@@ -18,7 +20,7 @@ from .matcher import build_matcher
 from .segmentation import (DETRsegm, PostProcessPanoptic, PostProcessSegm,
                            dice_loss, sigmoid_focal_loss)
 from .transformer import build_transformer
-from models.pytorch_pretrained_vit.vit_pytorch_old import ViT as old_ViT
+from .pytorch_pretrained_vit.utils import load_pretrained_weights
 from models.pytorch_pretrained_vit.model import ViT
 # from models.pytorch_pretrained_vit.model import hierarchicalViT
 from models.pytorch_pretrained_vit.configs import PRETRAINED_MODELS
@@ -27,8 +29,8 @@ from models.pytorch_pretrained_vit.configs import PRETRAINED_MODELS
 class DETR(nn.Module):
     """ This is the DETR module that performs object detection """
 
-    def __init__(self, backbone_name, backbone, transformer, num_classes, num_queries,imsize,
-                 aux_loss=False):
+    def __init__(self, backbone, transformer, num_classes, num_queries,imsize,
+                 aux_loss=False, cls_token=False, distilled=False,deit=False):
         """ Initializes the model.
         Parameters:
             backbone: torch module of the backbone to be used. See backbone.py
@@ -45,15 +47,14 @@ class DETR(nn.Module):
         self.class_embed = nn.Linear(hidden_dim, num_classes + 1)
         self.bbox_embed = MLP(hidden_dim, hidden_dim, 4, 3)
         self.query_embed = nn.Embedding(num_queries, hidden_dim)
-        if backbone_name != "ViT" and backbone_name not in PRETRAINED_MODELS.keys():
-            self.input_proj = nn.Conv2d(backbone.num_channels, hidden_dim, kernel_size=1)
-            self.ViT = False
-        else:
-            self.ViT = True
         self.backbone = backbone
         self.init = True
         self.aux_loss = aux_loss
         self.imsize = imsize
+        self.distilled = distilled,
+        self.cls_token = cls_token
+        self.deit = deit #todo remove , just for a wrokarind of clas token in fwd
+
 
 
     def forward(self, samples: NestedTensor):
@@ -73,28 +74,29 @@ class DETR(nn.Module):
         """
         if isinstance(samples, (list, torch.Tensor)):
             samples = nested_tensor_from_tensor_list(samples)
+        if not isinstance(samples, torch.Tensor):
+            samples = samples.tensors
+        src, pos = self.backbone(samples)
 
-        if self.ViT:
-            src, pos = self.backbone(samples)
-            if self.backbone.hierarchy:
-                if self.backbone.include_class_token:
-                    token = pos[:, 0:1, :]
-                    pos = self.backbone.transformer.hour_glass(pos[:, 1:, :])
-                    pos = torch.cat([token, pos], 1).contiguous()
-                else:
-                    pos = self.backbone.transformer.hour_glass(pos)
-            if self.backbone.position_embedding == "learned":
-                pos = pos.expand(src.shape[0], pos.shape[1], pos.shape[2])
+        if self.deit:
+            if not self.distilled:
+                cls_dist_token, pos_token = pos[:, :2, :], pos[:, 2:, :]
+                src_token = src[:,2:,:]
+            elif not self.cls_token:
+                cls_token, pos_token = pos[:, 0, :],pos[:, 1:, :]
+                src_token = src[:, 1:, :]
+                # pos = self.backbone.transformer.hour_glass(pos[:, 1:, :]) #todo @tanveer later fix for hierchy, mayb not needed
+                # pos = torch.cat([token, pos], 1).contiguous()
+        else:  #todo @tanver we dnt need to remove cls token inside vit, do it here and align else here
+                pos_token = pos
+                src_token = src
+        #         pos = self.backbone.transformer.hour_glass(pos)
+        # if self.backbone.position_embedding == "learned":
+        #     pos = pos.expand(src.shape[0], pos.shape[1], pos.shape[2])
 
-            mask = None
-            # In case of ViT DETR transformer would not include encoder
-            hs = self.transformer(src, mask, self.query_embed.weight, pos)
-
-        else:
-            features, pos = self.backbone(samples)
-            src, mask = features[-1].decompose()
-            assert mask is not None
-            hs = self.transformer(self.input_proj(src), mask, self.query_embed.weight, pos[-1])[0]
+        mask = None
+        # In case of ViT DETR transformer would not include encoder
+        hs = self.transformer(src_token, mask, self.query_embed.weight, pos_token)
 
         outputs_class = self.class_embed(hs)
         outputs_coord = self.bbox_embed(hs).sigmoid()
@@ -386,24 +388,46 @@ def build(args):
                        skip_connection=args.skip_connection,
                        hierarchy=args.hierarchy,
                        pool=args.pool,
-                       deit=args.deit
+                       deit='Deit' in args.backbone,
                        )
         # trasformer d_model
         args.hidden_dim = PRETRAINED_MODELS[args.pretrained_model]['config']['dim']
-    else:
-        args.backbone_name = "resnet"
-        backbone = build_backbone(args)
+    else:  # for deit
+        backbone = create_model(args.pretrained_model,
+                                    pretrained=False,
+                                    num_classes=1000,
+                                    drop_rate=args.dropout,
+                                    drop_path_rate=args.drop_path,
+                                    drop_block_rate=None,
+                                    skip_conn = args.skip_connection
+                                )
+        if args.pretrained_vit:
+            pretrained_image_size = np.repeat(int(args.pretrained_model.split('_')[-1]), 2)
+            patch_size = backbone.patch_embed.patch_size
+            load_pretrained_weights(
+                backbone,
+                weights_path=args.pretrain_dir,
+                load_first_conv=True,
+                resize_positional_embedding=args.img_size != tuple(pretrained_image_size),
+                old_img=(pretrained_image_size[0] // patch_size[0], pretrained_image_size[1] // patch_size[1]),  # original vit/deit 384x384
+                new_img=(args.img_size[0] // patch_size[0], args.img_size[1] // patch_size[1]),  # todo experiment with height and weight
+                deit=args.deit,
+                distilled='distilled' in args.pretrained_model
+            )
+
 
     transformer = build_transformer(args)
 
     model = DETR(
-        args.backbone,
         backbone,
         transformer,
         num_classes=num_classes,
         num_queries=args.num_queries,
         imsize=(args.img_width, args.img_height),
         aux_loss=args.aux_loss,
+        cls_token =  args.include_class_token,
+        distilled = 'distilled' in  args.pretrained_model,
+        deit='Deit' in args.backbone,
     )
     if args.masks:
         model = DETRsegm(model, freeze_detr=(args.frozen_weights is not None))

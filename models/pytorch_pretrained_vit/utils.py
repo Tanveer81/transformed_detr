@@ -61,41 +61,42 @@ def load_pretrained_weights(
 
     # Change checkpoint dictionary
     if deit:
-        old_img = (24,24) #TODO: check if not needed
-        num_layers_model = int([n for (n, p) in model.transformer.blocks.named_parameters()][-1].split('.')[0]) + 1
-        num_layers_state_dict = int((len(state_dict['model']) - 8) / 12)
-        if num_layers_model != num_layers_state_dict:
-            raise ValueError(f'Pretrained model has different number of layers: {num_layers_state_dict} than defined models layers: {num_layers_model}')
-        state_dict['class_token'] = state_dict['model'].pop('cls_token')
-        if distilled:
-            state_dict['distilled_token'] = state_dict['model'].pop('dist_token')
-        state_dict['positional_embedding.pos_embedding'] = state_dict['model'].pop('pos_embed')
-        state_dict['patch_embedding.weight'] = state_dict['model'].pop('patch_embed.proj.weight')
-        state_dict['patch_embedding.bias'] = state_dict['model'].pop('patch_embed.proj.bias')
-        state_dict['fc.weight'] = state_dict['model'].pop('head.weight')
-        state_dict['fc.bias'] = state_dict['model'].pop('head.bias')
-        state_dict['norm.weight'] = state_dict['model'].pop('norm.weight')
-        state_dict['norm.bias'] = state_dict['model'].pop('norm.bias')
-
-        for i in range(num_layers_model):
-            qkv_w = state_dict['model'].pop(f'blocks.{i}.attn.qkv.weight').reshape(model.dim, 3, -1).permute(1, 0, 2)
-            qkv_b = state_dict['model'].pop(f'blocks.{i}.attn.qkv.bias').reshape(model.dim, 3, -1).permute(1, 0, 2)
-            state_dict[f'transformer.blocks.{i}.attn.proj_q.weight'] = qkv_w[0]
-            state_dict[f'transformer.blocks.{i}.attn.proj_q.bias'] = qkv_b[0].squeeze()
-            state_dict[f'transformer.blocks.{i}.attn.proj_k.weight'] = qkv_w[1]
-            state_dict[f'transformer.blocks.{i}.attn.proj_k.bias'] = qkv_b[1].squeeze()
-            state_dict[f'transformer.blocks.{i}.attn.proj_v.weight'] = qkv_w[2]
-            state_dict[f'transformer.blocks.{i}.attn.proj_v.bias'] = qkv_b[2].squeeze()
-            state_dict[f'transformer.blocks.{i}.pwff.fc1.weight'] = state_dict['model'].pop(f'blocks.{i}.mlp.fc1.weight')
-            state_dict[f'transformer.blocks.{i}.pwff.fc1.bias'] = state_dict['model'].pop(f'blocks.{i}.mlp.fc1.bias')
-            state_dict[f'transformer.blocks.{i}.pwff.fc2.weight'] = state_dict['model'].pop(f'blocks.{i}.mlp.fc2.weight')
-            state_dict[f'transformer.blocks.{i}.pwff.fc2.bias'] = state_dict['model'].pop(f'blocks.{i}.mlp.fc2.bias')
-            state_dict[f'transformer.blocks.{i}.proj.weight'] = state_dict['model'].pop(f'blocks.{i}.attn.proj.weight')
-            state_dict[f'transformer.blocks.{i}.proj.bias'] = state_dict['model'].pop(f'blocks.{i}.attn.proj.bias')
-            state_dict[f'transformer.blocks.{i}.norm1.weight'] = state_dict['model'].pop(f'blocks.{i}.norm1.weight')
-            state_dict[f'transformer.blocks.{i}.norm1.bias'] = state_dict['model'].pop(f'blocks.{i}.norm1.bias')
-            state_dict[f'transformer.blocks.{i}.norm2.weight'] = state_dict['model'].pop(f'blocks.{i}.norm2.weight')
-            state_dict[f'transformer.blocks.{i}.norm2.bias'] = state_dict['model'].pop(f'blocks.{i}.norm2.bias')
+        state_dict = state_dict['model']
+    #     old_img = (24,24) #TODO: check if not needed
+    #     num_layers_model = int([n for (n, p) in model.transformer.blocks.named_parameters()][-1].split('.')[0]) + 1
+    #     num_layers_state_dict = int((len(state_dict['model']) - 8) / 12)
+    #     if num_layers_model != num_layers_state_dict:
+    #         raise ValueError(f'Pretrained model has different number of layers: {num_layers_state_dict} than defined models layers: {num_layers_model}')
+    #     state_dict['class_token'] = state_dict['model'].pop('cls_token')
+    #     if distilled:
+    #         state_dict['distilled_token'] = state_dict['model'].pop('dist_token')
+    #     state_dict['positional_embedding.pos_embedding'] = state_dict['model'].pop('pos_embed')
+    #     state_dict['patch_embedding.weight'] = state_dict['model'].pop('patch_embed.proj.weight')
+    #     state_dict['patch_embedding.bias'] = state_dict['model'].pop('patch_embed.proj.bias')
+    #     state_dict['fc.weight'] = state_dict['model'].pop('head.weight')
+    #     state_dict['fc.bias'] = state_dict['model'].pop('head.bias')
+    #     state_dict['norm.weight'] = state_dict['model'].pop('norm.weight')
+    #     state_dict['norm.bias'] = state_dict['model'].pop('norm.bias')
+    #
+    #     for i in range(num_layers_model):
+    #         qkv_w = state_dict['model'].pop(f'blocks.{i}.attn.qkv.weight').reshape(model.dim, 3, -1).permute(1, 0, 2)
+    #         qkv_b = state_dict['model'].pop(f'blocks.{i}.attn.qkv.bias').reshape(model.dim, 3, -1).permute(1, 0, 2)
+    #         state_dict[f'transformer.blocks.{i}.attn.proj_q.weight'] = qkv_w[0]
+    #         state_dict[f'transformer.blocks.{i}.attn.proj_q.bias'] = qkv_b[0].squeeze()
+    #         state_dict[f'transformer.blocks.{i}.attn.proj_k.weight'] = qkv_w[1]
+    #         state_dict[f'transformer.blocks.{i}.attn.proj_k.bias'] = qkv_b[1].squeeze()
+    #         state_dict[f'transformer.blocks.{i}.attn.proj_v.weight'] = qkv_w[2]
+    #         state_dict[f'transformer.blocks.{i}.attn.proj_v.bias'] = qkv_b[2].squeeze()
+    #         state_dict[f'transformer.blocks.{i}.pwff.fc1.weight'] = state_dict['model'].pop(f'blocks.{i}.mlp.fc1.weight')
+    #         state_dict[f'transformer.blocks.{i}.pwff.fc1.bias'] = state_dict['model'].pop(f'blocks.{i}.mlp.fc1.bias')
+    #         state_dict[f'transformer.blocks.{i}.pwff.fc2.weight'] = state_dict['model'].pop(f'blocks.{i}.mlp.fc2.weight')
+    #         state_dict[f'transformer.blocks.{i}.pwff.fc2.bias'] = state_dict['model'].pop(f'blocks.{i}.mlp.fc2.bias')
+    #         state_dict[f'transformer.blocks.{i}.proj.weight'] = state_dict['model'].pop(f'blocks.{i}.attn.proj.weight')
+    #         state_dict[f'transformer.blocks.{i}.proj.bias'] = state_dict['model'].pop(f'blocks.{i}.attn.proj.bias')
+    #         state_dict[f'transformer.blocks.{i}.norm1.weight'] = state_dict['model'].pop(f'blocks.{i}.norm1.weight')
+    #         state_dict[f'transformer.blocks.{i}.norm1.bias'] = state_dict['model'].pop(f'blocks.{i}.norm1.bias')
+    #         state_dict[f'transformer.blocks.{i}.norm2.weight'] = state_dict['model'].pop(f'blocks.{i}.norm2.weight')
+    #         state_dict[f'transformer.blocks.{i}.norm2.bias'] = state_dict['model'].pop(f'blocks.{i}.norm2.bias')
     # Change size of positional embeddings
     if resize_positional_embedding: 
         posemb = state_dict['positional_embedding.pos_embedding']

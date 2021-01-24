@@ -205,8 +205,7 @@ class ViT(nn.Module):
         Args:
             x (tensor): `b,c,fh,fw`
         """
-        if not isinstance(x, torch.Tensor):
-            x = x.tensors
+
         b, c, fh, fw = x.shape
         x = self.patch_embedding(x)  # b,d,gh,gw
         # x = self.AdaptiveAvgPool2d(x)

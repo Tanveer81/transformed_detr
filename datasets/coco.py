@@ -213,7 +213,7 @@ def build(image_set, args):
     img_folder, ann_file = PATHS[image_set]
 
     # Use transformer for ViT
-    if args.backbone == "ViT":
+    if args.backbone in ("ViT","Deit"):
         if args.random_image_size:
             dataset = CocoDetection(img_folder, ann_file, transforms=make_coco_transforms(image_set), return_masks=args.masks, aug=args.augment)
         else:

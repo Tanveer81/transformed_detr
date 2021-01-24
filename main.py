@@ -11,6 +11,7 @@ import torch
 from torch.utils.data import DataLoader, DistributedSampler
 
 import datasets
+import models.deit_models
 import util.misc as utils
 from datasets import build_dataset, get_coco_api_from_dataset
 from engine import evaluate, train_one_epoch
@@ -51,8 +52,9 @@ def get_args_parser():
     parser.add_argument('--only_weight', action='store_true', help='used for coco trainined detector')
     parser.add_argument('--pool', default='max', type=str, choices=('max', 'avg'))
     parser.add_argument('--augment', default=False, action='store_true')
-    parser.add_argument('--deit', default=False, action='store_true')
     parser.add_argument('--opt', default='AdamW', type=str, choices=('AdamW', 'SGD'))
+    parser.add_argument('--drop-path', type=float, default=0.1, metavar='PCT',
+                        help='Drop path rate (default: 0.1)')
 
     # Training
     parser.add_argument('--lr', default=2e-4, type=float)
@@ -69,7 +71,7 @@ def get_args_parser():
     parser.add_argument('--frozen_weights', type=str, default=None,
                         help="Path to the pretrained model. If set, only the mask head will be trained")
     # * Backbone
-    parser.add_argument('--backbone', default='ViT', type=str,
+    parser.add_argument('--backbone', default='ViT', type=str,choices=('ViT','Deit'),
                         help="Name of the convolutional backbone to use")
     parser.add_argument('--dilation', action='store_true',
                         help="If true, we replace stride with dilation in the last convolutional block (DC5)")
@@ -82,7 +84,7 @@ def get_args_parser():
                         help="Number of decoding layers in the transformer")
     parser.add_argument('--dim_feedforward', default=2048, type=int,
                         help="Intermediate size of the feedforward layers in the transformer blocks")
-    parser.add_argument('--hidden_dim', default=256, type=int,
+    parser.add_argument('--hidden_dim', default=768, type=int,
                         help="Size of the embeddings (dimension of the transformer)")
     parser.add_argument('--dropout', default=0.1, type=float,
                         help="Dropout applied in the transformer")
@@ -446,8 +448,8 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser('DETR training and evaluation script',
                                      parents=[get_args_parser()])
     args = parser.parse_args()
-    if args.deit and args.pretrained_vit:
-        assert 'deit' in args.pretrain_dir, 'for pretraining with deit please load deit checkpoint'
+    # if args.deit and args.pretrained_vit:
+    #     assert 'deit' in args.pretrain_dir, 'for pretraining with deit please load deit checkpoint'
     args.img_size = (args.img_width, args.img_height)
     print(args)
     if not args.output_dir:  # create output dir as per experiment name in exp folder
