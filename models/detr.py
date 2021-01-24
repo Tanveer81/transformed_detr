@@ -391,6 +391,7 @@ def build(args):
                        )
         # trasformer d_model
         args.hidden_dim = PRETRAINED_MODELS[args.pretrained_model]['config']['dim']
+
     else:  # for deit
         backbone = create_model(args.pretrained_model,
                                     pretrained=False,
@@ -400,28 +401,31 @@ def build(args):
                                     drop_block_rate=None,
                                     skip_conn = args.skip_connection
                                 )
-    if args.pretrained_vit:
-        pretrained_image_size = np.repeat(int(args.pretrained_model.split('_')[-1]), 2)
-        patch_size = backbone.patch_embed.patch_size
-        load_pretrained_weights(
-            backbone,
-            weights_path=args.pretrain_dir,
-            load_first_conv=True,
-            resize_positional_embedding=args.img_size != tuple(pretrained_image_size),
-            old_img=(pretrained_image_size[0] // patch_size[0], pretrained_image_size[1] // patch_size[1]),  # original vit/deit 384x384
-            new_img=(args.img_size[0] // patch_size[0], args.img_size[1] // patch_size[1]),  # todo experiment with height and weight
-            deit=args.deit,
-            distilled='distilled' in args.pretrained_model
-        )
+        if args.pretrained_vit:
+            pretrained_image_size = np.repeat(int(args.pretrained_model.split('_')[-1]), 2)  # model contains sq image size in the name ex. deit_base_patch16_384
+            patch_size = backbone.patch_embed.patch_size
+            load_pretrained_weights(
+                backbone,
+                weights_path=args.pretrain_dir,
+                load_first_conv=True,
+                resize_positional_embedding=args.img_size != tuple(pretrained_image_size),
+                old_img=(pretrained_image_size[0] // patch_size[0], pretrained_image_size[1] // patch_size[1]),  # original vit/deit 384x384
+                new_img=(args.img_size[0] // patch_size[0], args.img_size[1] // patch_size[1]),  # todo experiment with height and weight
+                deit='Deit' in args.backbone,
+                distilled='distilled' in args.pretrained_model
+            )
 
-    if args.pretrained_detr:
-        args.hid_dim_old = PRETRAINED_MODELS[args.pretrained_model]['config']['dim']
-        args.nheads = 8
-    else:
-        args.hidden_dim = PRETRAINED_MODELS[args.pretrained_model]['config']['dim']
-        #TODO: should we keep this args.nheads = 8
 
-    backbone = build_backbone(args)
+        if args.pretrained_detr:
+            if args.backbone=="ViT":
+                args.hid_dim_old = PRETRAINED_MODELS[args.pretrained_model]['config']['dim']
+            else :
+                print("TBD")
+            args.nheads = 8
+        else:
+            args.hid_dim_old = args.hidden_dim
+            #TODO: should we keep this args.nheads = 8
+
 
     transformer = build_transformer(args)
 

@@ -29,7 +29,8 @@ class Transformer(nn.Module):
         self.backbone = backbone_name
         # Only use encoder for resnet backbone and not for ViT
         decoder_layer = TransformerDecoderLayer(d_model, nhead, dim_feedforward,
-                                                dropout, activation, normalize_before,cross_first)
+                                                dropout, activation, normalize_before,cross_first, hid_dim_old)
+
         decoder_norm = nn.LayerNorm(d_model)
         self.decoder = TransformerDecoder(decoder_layer, num_decoder_layers, decoder_norm,
                                           return_intermediate=return_intermediate_dec)
@@ -102,8 +103,8 @@ class TransformerDecoder(nn.Module):
 
 class TransformerDecoderLayer(nn.Module):
 
-    def __init__(self, d_model, nhead, hid_dim_old, dim_feedforward=2048, dropout=0.1,
-                 activation="relu", normalize_before=False, cross_first=False):
+    def __init__(self, d_model, nhead, dim_feedforward=2048, dropout=0.1,
+                 activation="relu", normalize_before=False, cross_first=False, hid_dim_old= 256):
         super().__init__()
         self.cross_first=cross_first
         self.self_attn = nn.MultiheadAttention(d_model, nhead, dropout=dropout)

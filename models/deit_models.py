@@ -19,7 +19,7 @@ __all__ = [
 
 class OverrideVisionTransformer(VisionTransformer):
     def __init__(self, *args, **kwargs):
-        self.skip_conn = kwargs.pop('skip_conn')
+        self.skip_conn = kwargs.pop('skip_conn') #todo implement a list from where the connection
         super().__init__(*args, **kwargs)
 
     def forward(self, x):
