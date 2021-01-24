@@ -56,7 +56,6 @@ class DETR(nn.Module):
         self.deit = deit #todo remove , just for a wrokarind of clas token in fwd
 
 
-
     def forward(self, samples: NestedTensor):
         """ The forward expects a NestedTensor, which consists of:
                - samples.tensor: batched images, of shape [batch_size x 3 x H x W]
@@ -401,20 +400,28 @@ def build(args):
                                     drop_block_rate=None,
                                     skip_conn = args.skip_connection
                                 )
-        if args.pretrained_vit:
-            pretrained_image_size = np.repeat(int(args.pretrained_model.split('_')[-1]), 2)
-            patch_size = backbone.patch_embed.patch_size
-            load_pretrained_weights(
-                backbone,
-                weights_path=args.pretrain_dir,
-                load_first_conv=True,
-                resize_positional_embedding=args.img_size != tuple(pretrained_image_size),
-                old_img=(pretrained_image_size[0] // patch_size[0], pretrained_image_size[1] // patch_size[1]),  # original vit/deit 384x384
-                new_img=(args.img_size[0] // patch_size[0], args.img_size[1] // patch_size[1]),  # todo experiment with height and weight
-                deit=args.deit,
-                distilled='distilled' in args.pretrained_model
-            )
+    if args.pretrained_vit:
+        pretrained_image_size = np.repeat(int(args.pretrained_model.split('_')[-1]), 2)
+        patch_size = backbone.patch_embed.patch_size
+        load_pretrained_weights(
+            backbone,
+            weights_path=args.pretrain_dir,
+            load_first_conv=True,
+            resize_positional_embedding=args.img_size != tuple(pretrained_image_size),
+            old_img=(pretrained_image_size[0] // patch_size[0], pretrained_image_size[1] // patch_size[1]),  # original vit/deit 384x384
+            new_img=(args.img_size[0] // patch_size[0], args.img_size[1] // patch_size[1]),  # todo experiment with height and weight
+            deit=args.deit,
+            distilled='distilled' in args.pretrained_model
+        )
 
+    if args.pretrained_detr:
+        args.hid_dim_old = PRETRAINED_MODELS[args.pretrained_model]['config']['dim']
+        args.nheads = 8
+    else:
+        args.hidden_dim = PRETRAINED_MODELS[args.pretrained_model]['config']['dim']
+        #TODO: should we keep this args.nheads = 8
+
+    backbone = build_backbone(args)
 
     transformer = build_transformer(args)
 

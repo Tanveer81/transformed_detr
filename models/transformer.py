@@ -22,7 +22,7 @@ class Transformer(nn.Module):
 
     def __init__(self, d_model=512, nhead=8, num_decoder_layers=6, dim_feedforward=2048, dropout=0.1,
                  activation="relu", normalize_before=False,
-                 return_intermediate_dec=False, backbone_name = 'resnet', cross_first=False):
+                 return_intermediate_dec=False, backbone_name = 'resnet', cross_first=False, hid_dim_old=512):
         super().__init__()
 
         # In case of ViT backbone, self.backbone changes to "ViT" from detr
@@ -102,7 +102,7 @@ class TransformerDecoder(nn.Module):
 
 class TransformerDecoderLayer(nn.Module):
 
-    def __init__(self, d_model, nhead, dim_feedforward=2048, dropout=0.1,
+    def __init__(self, d_model, nhead, hid_dim_old, dim_feedforward=2048, dropout=0.1,
                  activation="relu", normalize_before=False, cross_first=False):
         super().__init__()
         self.cross_first=cross_first
@@ -122,8 +122,15 @@ class TransformerDecoderLayer(nn.Module):
 
         self.activation = _get_activation_fn(activation)
         self.normalize_before = normalize_before
+        self.d_model = d_model
+        self.hid_dim_old = hid_dim_old
+
+        if d_model != hid_dim_old:
+            self.hidden_dim_proj = nn.Linear(hid_dim_old, d_model)
 
     def with_pos_embed(self, tensor, pos: Optional[Tensor]):
+        if self.d_model != tensor.shape[2]:
+            return self.hidden_dim_proj(tensor) if pos is None else self.hidden_dim_proj(tensor + pos)  # todo with no positional embedding for testing
         return tensor if pos is None else tensor + pos #todo with no positional embedding for testing
 
     def forward_post(self, tgt, memory,
@@ -136,7 +143,7 @@ class TransformerDecoderLayer(nn.Module):
         if self.cross_first: # 1st aplly decoder to all image attn
             tgt2 = self.multihead_attn(query=self.with_pos_embed(tgt, query_pos),
                                        key=self.with_pos_embed(memory, pos),
-                                       value=memory, attn_mask=memory_mask,
+                                       value=self.with_pos_embed(memory, None), attn_mask=memory_mask,
                                        key_padding_mask=memory_key_padding_mask)[0]
             tgt = tgt + self.dropout2(tgt2)
             tgt = self.norm2(tgt)
@@ -148,7 +155,7 @@ class TransformerDecoderLayer(nn.Module):
         if not self.cross_first:
             tgt2 = self.multihead_attn(query=self.with_pos_embed(tgt, query_pos),
                                        key=self.with_pos_embed(memory, pos),
-                                       value=memory, attn_mask=memory_mask,
+                                       value=self.with_pos_embed(memory, None), attn_mask=memory_mask,
                                        key_padding_mask=memory_key_padding_mask)[0]
             tgt = tgt + self.dropout2(tgt2)
             tgt = self.norm2(tgt)
@@ -172,7 +179,7 @@ class TransformerDecoderLayer(nn.Module):
         tgt2 = self.norm2(tgt)
         tgt2 = self.multihead_attn(query=self.with_pos_embed(tgt2, query_pos),
                                    key=self.with_pos_embed(memory, pos),
-                                   value=memory, attn_mask=memory_mask,
+                                   value=self.with_pos_embed(memory, None), attn_mask=memory_mask,
                                    key_padding_mask=memory_key_padding_mask)[0]
         tgt = tgt + self.dropout2(tgt2)
         tgt2 = self.norm3(tgt)
@@ -199,7 +206,7 @@ def _get_clones(module, N):
 
 
 def build_transformer(args):
-    return Transformer(
+    transformer =  Transformer(
         d_model=args.hidden_dim,
         dropout=args.dropout,
         nhead=args.nheads,
@@ -209,8 +216,21 @@ def build_transformer(args):
         return_intermediate_dec=True,
         backbone_name=args.pretrained_model,
         activation="gelu",
-        cross_first = args.cross_first
+        cross_first = args.cross_first,
+        hid_dim_old=args.hid_dim_old,
     )
+
+    if args.pretrained_detr:
+        state_dict = torch.load(args.detr_pretrain_dir)
+
+        for old_key, old_val in list(state_dict['model'].items()):
+            del state_dict['model'][old_key]
+            new_key = old_key.replace('transformer.','')
+            state_dict['model'][new_key] = old_val
+
+        ret = transformer.load_state_dict(state_dict['model'], strict=False)
+
+    return transformer
 
 
 def _get_activation_fn(activation):

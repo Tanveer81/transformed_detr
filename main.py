@@ -35,9 +35,12 @@ def get_args_parser():
     parser.add_argument('--experiment_name', default='train', type=str)
     parser.add_argument('--overfit_one_batch', default=False, action='store_true')
     parser.add_argument('--pretrained_vit', default=False, action='store_true')
+    parser.add_argument('--pretrained_detr', default=False, action='store_true')
     parser.add_argument('--pretrained_model', default='B_16_imagenet1k', type=str,
                         help="ViT pre-trained model type")
     parser.add_argument('--pretrain_dir', default='/nfs/data3/koner/data/checkpoints/vit_detr/B_16_imagenet1k.pth',
+                        help='path to load wight of pre train classification')
+    parser.add_argument('--detr_pretrain_dir', default='/nfs/data3/koner/data/checkpoints/vit_detr/detr/detr-r50-e632da11.pth',
                         help='path to load wight of pre train classification')
     parser.add_argument('--random_image_size', default=False, action='store_true')
     parser.add_argument('--img_width', default=384, type=int)
