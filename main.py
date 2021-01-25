@@ -307,7 +307,7 @@ def main(args):
 
         test_stats, coco_evaluator = evaluate(
             model, criterion, postprocessors, data_loader_val, base_ds, device, args.output_dir,
-            args.overfit_one_batch, args.print_details
+            args.overfit_one_batch, args.print_freq, args.print_details
         )
         ap_box = coco_evaluator.coco_eval['bbox'].stats.tolist()[0]  # take AP Box for reducing lr
         lr_scheduler.step(ap_box)
