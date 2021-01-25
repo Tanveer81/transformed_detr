@@ -7,7 +7,20 @@ from torch.utils import model_zoo
 
 from .configs import PRETRAINED_MODELS
 
+def non_strict_load_state_dict(model, state_dict, strict=False, verbose=True):
+    ret = model.load_state_dict(state_dict, strict=False)
+    if strict:
+        assert not ret.missing_keys, \
+            'Missing keys when loading pretrained weights: {}'.format(ret.missing_keys)
+        assert not ret.unexpected_keys, \
+            'Missing keys when loading pretrained weights: {}'.format(ret.unexpected_keys)
+        maybe_print('Loaded pretrained weights.', verbose)
+    else:
+        maybe_print('Missing keys when loading pretrained weights: {}'.format(ret.missing_keys), verbose)
+        maybe_print('Unexpected keys when loading pretrained weights: {}'.format(ret.unexpected_keys), verbose)
+    return ret
 
+#todo clean this function as we need only one load state dct for detr and backbone
 def load_pretrained_weights(
     model, 
     model_name=None, 
@@ -99,7 +112,7 @@ def load_pretrained_weights(
     #         state_dict[f'transformer.blocks.{i}.norm2.bias'] = state_dict['model'].pop(f'blocks.{i}.norm2.bias')
     # Change size of positional embeddings
     if resize_positional_embedding: 
-        posemb = state_dict['positional_embedding.pos_embedding']
+        posemb = state_dict['positional_embedding.pos_embedding'] #TODO: check deit vs vit
         posemb_new = model.state_dict()['positional_embedding.pos_embedding']
         print(posemb_new.shape)
         state_dict['positional_embedding.pos_embedding'] = \
@@ -113,7 +126,7 @@ def load_pretrained_weights(
         # Load state dict
     ret = model.load_state_dict(state_dict, strict=False)
     if strict:
-        assert set(ret.missing_keys) == set(expected_missing_keys), \
+        assert not ret.missing_keys, \
             'Missing keys when loading pretrained weights: {}'.format(ret.missing_keys)
         assert not ret.unexpected_keys, \
             'Missing keys when loading pretrained weights: {}'.format(ret.unexpected_keys)
@@ -121,7 +134,8 @@ def load_pretrained_weights(
     else:
         maybe_print('Missing keys when loading pretrained weights: {}'.format(ret.missing_keys), verbose)
         maybe_print('Unexpected keys when loading pretrained weights: {}'.format(ret.unexpected_keys), verbose)
-        return ret
+
+    return ret
 
 
 def maybe_print(s: str, flag: bool):

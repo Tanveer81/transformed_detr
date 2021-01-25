@@ -72,7 +72,7 @@ class ViT(nn.Module):
             image_size: Optional[tuple] = (608, 800),
             num_classes: Optional[int] = None,
             include_class_token: bool = True,
-            skip_connection: bool = False,
+            skip_connection: list = [2, 5, 8],
             hierarchy: bool = False,
             pool: str = None,
             deit:bool = False,
@@ -150,12 +150,9 @@ class ViT(nn.Module):
             self.positional_embedding_2d = PositionalEncodingPermute2D(dim)
 
         # Transformer
-        self.transformer = Transformer(num_layers=num_layers, dim=dim, num_heads=num_heads,
-                                       ff_dim=ff_dim, dropout=dropout_rate,
-                                       skip_connection=self.skip_connection,
-                                       imsize=image_size,
-                                       include_class_token=self.include_class_token,
-                                       hierarchy=self.hierarchy, pool=self.pool, fh=self.fh, fw=self.fw, gh=self.gh, gw=self.gw)
+        self.transformer = Transformer(num_layers=num_layers, dim=dim, num_heads=num_heads, ff_dim=ff_dim, dropout=dropout_rate,
+                                       skip_connection=self.skip_connection, imsize=image_size, include_class_token=self.include_class_token,
+                                       hierarchy=self.hierarchy, pool=self.pool, fh=self.fh, fw=self.fw, gh=self.gh, gw=self.gw,)
 
         # Initialize weights
         self.init_weights()

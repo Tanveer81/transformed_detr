@@ -19,7 +19,7 @@ __all__ = [
 
 class OverrideVisionTransformer(VisionTransformer):
     def __init__(self, *args, **kwargs):
-        self.skip_conn = kwargs.pop('skip_conn') #todo implement a list from where the connection
+        self.skip_connection = kwargs.pop('skip_connection')
         super().__init__(*args, **kwargs)
 
     def forward(self, x):
@@ -31,8 +31,19 @@ class OverrideVisionTransformer(VisionTransformer):
         x = x + self.pos_embed
         x = self.pos_drop(x)
 
-        for blk in self.blocks:
-            x = blk(x)
+        # Perform skip connection
+        if len(self.skip_connection) > 0:
+            residual_connections = []
+            for i, block in enumerate(self.blocks):
+                x = block(x,)
+                if i in self.skip_connection:
+                    residual_connections.append(x)
+
+            for residual in residual_connections:
+                x = x + residual
+        else:
+            for blk in self.blocks:
+                x = blk(x)
 
         x = self.norm(x)
         return x, self.pos_embed
@@ -43,6 +54,7 @@ class DistilledVisionTransformer(VisionTransformer):
         kwargs['qk_scale'] = None
         kwargs['attn_drop_rate'] = 0.
         super().__init__(*args, **kwargs)
+        self.skip_connection = kwargs.pop('skip_connection')
 
         # dpr = [x.item() for x in torch.linspace(0, kwargs['drop_path_rate'], kwargs['depth'])]  # stochastic depth decay rule
         # self.blocks = nn.ModuleList([
@@ -73,8 +85,19 @@ class DistilledVisionTransformer(VisionTransformer):
         x = x + self.pos_embed
         x = self.pos_drop(x)
 
-        for blk in self.blocks:
-            x = blk(x)
+        # Perform skip connection
+        if len(self.skip_connection) > 0:
+            residual_connections = []
+            for i, block in enumerate(self.blocks):
+                x = block(x,)
+                if i in self.skip_connection:
+                    residual_connections.append(x)
+
+            for residual in residual_connections:
+                x = x + residual
+        else: # no skip connection
+            for blk in self.blocks:
+                x = blk(x)
 
         x = self.norm(x)
         return x[:, 0], x[:, 1]

@@ -266,7 +266,8 @@ class Block(nn.Module):
 
 class Transformer(nn.Module):
     """Transformer with Self-Attentive Blocks"""
-    def __init__(self, num_layers, dim, num_heads, ff_dim, dropout, imsize, skip_connection=False, include_class_token=True, hierarchy=False, pool=None, fh=None, fw=None, gh=None, gw=None):
+    def __init__(self, num_layers, dim, num_heads, ff_dim, dropout, imsize, skip_connection=[2, 5, 8],
+                 include_class_token=True, hierarchy=False, pool=None, fh=None, fw=None, gh=None,gw=None):
         super().__init__()
         self.gh = gh
         self.gw = gw
@@ -305,8 +306,8 @@ class Transformer(nn.Module):
 #                 print('Block',i+1,'Min:', x.data.min().cpu().numpy(), 'Max', x.data.max().cpu().numpy())
 
                 # skip connections
-                if i in [2, 5, 8]:
-                    if i == 2 or 5:
+                if i in self.skip_connection:
+                    if i == 2 or 5: #TODO: make 2 and 5 dynamic based on skip_connection_indexes
                         if self.include_class_token:
                             token = x[:, 0:1, :]
                             y = self.hour_glass(x[:, 1:, :])
@@ -338,11 +339,11 @@ class Transformer(nn.Module):
 
 
         # Added residual connection from layer 3, 6 and 9
-        elif self.skip_connection:
+        elif len(self.skip_connection)>0:
             residual_connections = []
             for i, block in zip(range(len(self.blocks)), self.blocks):
                 x = block(x, mask)
-                if i in [2, 5, 8]:
+                if i in self.skip_connection:
                     residual_connections.append(x)
 
             for residual in residual_connections:

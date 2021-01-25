@@ -4,6 +4,7 @@ DETR model and criterion classes.
 """
 import numpy as np
 import torch
+import os
 import torch.nn.functional as F
 from torch import nn
 from torchvision.ops import nms
@@ -24,6 +25,7 @@ from .pytorch_pretrained_vit.utils import load_pretrained_weights
 from models.pytorch_pretrained_vit.model import ViT
 # from models.pytorch_pretrained_vit.model import hierarchicalViT
 from models.pytorch_pretrained_vit.configs import PRETRAINED_MODELS
+from .pytorch_pretrained_vit.utils import non_strict_load_state_dict
 
 
 class DETR(nn.Module):
@@ -54,7 +56,14 @@ class DETR(nn.Module):
         self.distilled = distilled,
         self.cls_token = cls_token
         self.deit = deit #todo remove , just for a wrokarind of clas token in fwd
-
+        if deit:# This if else condition is needed for VIT code compatibility. Can remove it when shieft to timm code totally
+            self.backbone_dim = backbone.embed_dim
+        else: # VIT
+            self.backbone_dim = backbone.dim
+        # If backbone and detr has different hidden dimension, we create projection for compatability
+        if self.backbone_dim != transformer.d_model:
+            self.hidden_dim_proj_src = nn.Linear(self.backbone_dim, transformer.d_model)
+            self.hidden_dim_proj_pos = nn.Linear(self.backbone_dim, transformer.d_model)
 
     def forward(self, samples: NestedTensor):
         """ The forward expects a NestedTensor, which consists of:
@@ -95,6 +104,11 @@ class DETR(nn.Module):
 
         mask = None
         # In case of ViT DETR transformer would not include encoder
+
+        # If backbone and detr has different hidden dimension, we create projection for compatability
+        if self.backbone_dim != self.transformer.d_model:
+            src_token = self.hidden_dim_proj_src(src_token)
+            pos_token = self.hidden_dim_proj_pos(pos_token)
         hs = self.transformer(src_token, mask, self.query_embed.weight, pos_token)
 
         outputs_class = self.class_embed(hs)
@@ -374,22 +388,10 @@ def build(args):
     #     args.hidden_dim = PRETRAINED_MODELS[args.backbone]['config']['dim']
 
     if args.backbone == "ViT":
-        #args.backbone_name = "ViT"
-        backbone = ViT(args.pretrained_model,
-                       pretrained=args.pretrained_vit,
-                       pretrain_dir=args.pretrain_dir,
-                       detr_compatibility=True,
-                       position_embedding=args.position_embedding,
-                       image_size=args.img_size,
-                       num_heads=args.nheads,
-                       num_layers=args.enc_layers,
-                       include_class_token=args.include_class_token,
-                       skip_connection=args.skip_connection,
-                       hierarchy=args.hierarchy,
-                       pool=args.pool,
-                       deit='Deit' in args.backbone,
-                       )
-        # trasformer d_model
+        backbone = ViT(args.pretrained_model, pretrained=args.pretrained_vit, pretrain_dir=args.pretrain_dir, detr_compatibility=True,
+                       position_embedding=args.position_embedding, image_size=args.img_size, num_heads=args.backbone_nheads, num_layers=args.enc_layers,
+                       include_class_token=args.include_class_token, skip_connection=args.skip_connection, hierarchy=args.hierarchy, pool=args.pool, deit='Deit' in args.backbone,)
+        # Make detr d_model compatible with vit
         args.hidden_dim = PRETRAINED_MODELS[args.pretrained_model]['config']['dim']
 
     else:  # for deit
@@ -399,8 +401,10 @@ def build(args):
                                     drop_rate=args.dropout,
                                     drop_path_rate=args.drop_path,
                                     drop_block_rate=None,
-                                    skip_conn = args.skip_connection
+                                    skip_connection = args.skip_connection
                                 )
+        # Make detr d_model compatible with deit
+        args.hidden_dim = backbone.embed_dim
         if args.pretrained_vit:
             pretrained_image_size = np.repeat(int(args.pretrained_model.split('_')[-1]), 2)  # model contains sq image size in the name ex. deit_base_patch16_384
             patch_size = backbone.patch_embed.patch_size
@@ -415,19 +419,30 @@ def build(args):
                 distilled='distilled' in args.pretrained_model
             )
 
-
-        if args.pretrained_detr:
-            if args.backbone=="ViT":
-                args.hid_dim_old = PRETRAINED_MODELS[args.pretrained_model]['config']['dim']
-            else :
-                print("TBD")
-            args.nheads = 8
-        else:
-            args.hid_dim_old = args.hidden_dim
-            #TODO: should we keep this args.nheads = 8
-
+    # If we want to load pretrained detr, we need to keep the dmodel = 256
+    # Otherwise it will be fixed according to backbone spec above
+    if os.path.exists(args.detr_pretrain_dir) > 0:
+        args.hidden_dim = 256 # as pretrained detr dim was 256
 
     transformer = build_transformer(args)
+
+    #TODO: Load weights here
+    if os.path.exists(args.detr_pretrain_dir)>0:
+        state_dict = torch.load(args.detr_pretrain_dir)
+
+        for old_key, old_val in list(state_dict['model'].items()):
+            if any(k in old_key for k in ['encoder', 'backbone']) : # delete unnecessary kwys with enoder,bconv backbone as on decoder weight is needed
+                del state_dict['model'][old_key]
+            else:
+                del state_dict['model'][old_key]
+                new_key = old_key.replace('transformer.', '')
+                state_dict['model'][new_key] = old_val
+
+        ret = non_strict_load_state_dict(transformer, state_dict['model'])
+
+        print('Missing keys when loading pretrained weights: {}'.format(ret.missing_keys))
+        print('Unexpected keys when loading pretrained weights: {}'.format(ret.unexpected_keys))
+        print('Loaded Detr weight from %s'%args.detr_pretrain_dir)
 
     model = DETR(
         backbone,
@@ -440,6 +455,18 @@ def build(args):
         distilled = 'distilled' in  args.pretrained_model,
         deit='Deit' in args.backbone,
     )
+
+    if os.path.exists(args.detr_pretrain_dir) > 0:
+        model.class_embed.weight.data.copy_(state_dict['model']['class_embed.weight'])
+        model.class_embed.bias.data.copy_(state_dict['model']['class_embed.bias'])
+        model.query_embed.weight.data.copy_(state_dict['model']['query_embed.weight'])
+        model.bbox_embed.layers[0].weight.data.copy_(state_dict['model']['bbox_embed.layers.0.weight'])
+        model.bbox_embed.layers[0].bias.data.copy_(state_dict['model']['bbox_embed.layers.0.bias'])
+        model.bbox_embed.layers[1].weight.data.copy_(state_dict['model']['bbox_embed.layers.1.weight'])
+        model.bbox_embed.layers[1].bias.data.copy_(state_dict['model']['bbox_embed.layers.1.bias'])
+        model.bbox_embed.layers[2].weight.data.copy_(state_dict['model']['bbox_embed.layers.2.weight'])
+        model.bbox_embed.layers[2].bias.data.copy_(state_dict['model']['bbox_embed.layers.2.bias'])
+
     if args.masks:
         model = DETRsegm(model, freeze_detr=(args.frozen_weights is not None))
     matcher = build_matcher(args)

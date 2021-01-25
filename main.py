@@ -35,7 +35,6 @@ def get_args_parser():
     parser.add_argument('--experiment_name', default='train', type=str)
     parser.add_argument('--overfit_one_batch', default=False, action='store_true')
     parser.add_argument('--pretrained_vit', default=False, action='store_true')
-    parser.add_argument('--pretrained_detr', default=False, action='store_true')
     parser.add_argument('--pretrained_model', default='B_16_imagenet1k', type=str,
                         help="ViT pre-trained model type")
     parser.add_argument('--pretrain_dir', default='/nfs/data3/koner/data/checkpoints/vit_detr/B_16_imagenet1k.pth',
@@ -45,12 +44,15 @@ def get_args_parser():
     parser.add_argument('--random_image_size', default=False, action='store_true')
     parser.add_argument('--img_width', default=384, type=int)
     parser.add_argument('--img_height', default=384, type=int)
-    parser.add_argument('--nheads', default=12, type=int,
+    parser.add_argument('--backbone_nheads', default=12, type=int,
+                        help="Number of attention heads inside the transformer's attentions")
+    parser.add_argument('--detr_nheads', default=8, type=int,
                         help="Number of attention heads inside the transformer's attentions")
     parser.add_argument('--enc_layers', default=12, type=int,
                         help="Number of encoding layers in the transformer")
     parser.add_argument('--include_class_token', default=False, action='store_true')
-    parser.add_argument('--skip_connection', default=False, action='store_true')
+    parser.add_argument("--skip_connection", nargs="*", type=int, default=[2, 5, 8], help="list of index where skip conn will be made")
+    # parser.add_argument('--skip_connection', default=False, action='store_true')
     parser.add_argument('--hierarchy', default=False, action='store_true')
     parser.add_argument('--only_weight', action='store_true', help='used for coco trainined detector')
     parser.add_argument('--pool', default='max', type=str, choices=('max', 'avg'))
@@ -58,6 +60,9 @@ def get_args_parser():
     parser.add_argument('--opt', default='AdamW', type=str, choices=('AdamW', 'SGD'))
     parser.add_argument('--drop-path', type=float, default=0.1, metavar='PCT',
                         help='Drop path rate (default: 0.1)')
+    parser.add_argument('--print_details', default=False, action='store_true')
+    parser.add_argument("--cuda_visible_device", nargs="*", type=int, default=[0,1],
+                        help="list of index where skip conn will be made")
 
     # Training
     parser.add_argument('--lr', default=2e-4, type=float)
@@ -66,7 +71,7 @@ def get_args_parser():
     parser.add_argument('--weight_decay', default=1e-4, type=float)
     parser.add_argument('--epochs', default=300, type=int)
     parser.add_argument('--lr_drop', default=200, type=int)
-    parser.add_argument('--print_freq', default=500, type=int)
+    parser.add_argument('--print_freq', default=500000, type=int)
     parser.add_argument('--clip_max_norm', default=0.1, type=float,
                         help='gradient clipping max norm')
 
@@ -149,7 +154,7 @@ def get_args_parser():
 
 def main(args):
     # wandb.login()
-    os.environ["CUDA_VISIBLE_DEVICES"] = "0,1,2,3,4,7"
+    os.environ["CUDA_VISIBLE_DEVICES"] = ','.join(map(str, args.cuda_visible_device))
     utils.init_distributed_mode(args)
     print("git:\n  {}\n".format(utils.get_sha()))
 
@@ -284,7 +289,7 @@ def main(args):
             sampler_train.set_epoch(epoch)
         train_stats = train_one_epoch(
             model, criterion, data_loader_train, optimizer, device, epoch,
-            args.clip_max_norm, args.overfit_one_batch, args.print_freq)
+            args.clip_max_norm, args.overfit_one_batch, args.print_freq, args.print_details)
 
         if args.output_dir:
             checkpoint_paths = [output_dir / 'checkpoint.pth']
@@ -302,7 +307,7 @@ def main(args):
 
         test_stats, coco_evaluator = evaluate(
             model, criterion, postprocessors, data_loader_val, base_ds, device, args.output_dir,
-            args.overfit_one_batch
+            args.overfit_one_batch, args.print_details
         )
         ap_box = coco_evaluator.coco_eval['bbox'].stats.tolist()[0]  # take AP Box for reducing lr
         lr_scheduler.step(ap_box)

@@ -9,11 +9,13 @@ Copy-paste from torch.nn.Transformer with modifications:
 """
 import copy
 from typing import Optional, List
+import os
 
 import math
 import torch
 import torch.nn.functional as F
 from torch import nn, Tensor
+from .pytorch_pretrained_vit.utils import non_strict_load_state_dict
 
 DEBUG = False
 
@@ -22,14 +24,14 @@ class Transformer(nn.Module):
 
     def __init__(self, d_model=512, nhead=8, num_decoder_layers=6, dim_feedforward=2048, dropout=0.1,
                  activation="relu", normalize_before=False,
-                 return_intermediate_dec=False, backbone_name = 'resnet', cross_first=False, hid_dim_old=512):
+                 return_intermediate_dec=False, backbone_name = 'resnet', cross_first=False):
         super().__init__()
 
         # In case of ViT backbone, self.backbone changes to "ViT" from detr
         self.backbone = backbone_name
         # Only use encoder for resnet backbone and not for ViT
         decoder_layer = TransformerDecoderLayer(d_model, nhead, dim_feedforward,
-                                                dropout, activation, normalize_before,cross_first, hid_dim_old)
+                                                dropout, activation, normalize_before,cross_first)
 
         decoder_norm = nn.LayerNorm(d_model)
         self.decoder = TransformerDecoder(decoder_layer, num_decoder_layers, decoder_norm,
@@ -104,7 +106,7 @@ class TransformerDecoder(nn.Module):
 class TransformerDecoderLayer(nn.Module):
 
     def __init__(self, d_model, nhead, dim_feedforward=2048, dropout=0.1,
-                 activation="relu", normalize_before=False, cross_first=False, hid_dim_old= 256):
+                 activation="relu", normalize_before=False, cross_first=False):
         super().__init__()
         self.cross_first=cross_first
         self.self_attn = nn.MultiheadAttention(d_model, nhead, dropout=dropout)
@@ -124,14 +126,8 @@ class TransformerDecoderLayer(nn.Module):
         self.activation = _get_activation_fn(activation)
         self.normalize_before = normalize_before
         self.d_model = d_model
-        self.hid_dim_old = hid_dim_old
-
-        if d_model != hid_dim_old:
-            self.hidden_dim_proj = nn.Linear(hid_dim_old, d_model)
 
     def with_pos_embed(self, tensor, pos: Optional[Tensor]):
-        if self.d_model != tensor.shape[2]:
-            return self.hidden_dim_proj(tensor) if pos is None else self.hidden_dim_proj(tensor + pos)  # todo with no positional embedding for testing
         return tensor if pos is None else tensor + pos #todo with no positional embedding for testing
 
     def forward_post(self, tgt, memory,
@@ -210,7 +206,7 @@ def build_transformer(args):
     transformer =  Transformer(
         d_model=args.hidden_dim,
         dropout=args.dropout,
-        nhead=args.nheads,
+        nhead=args.detr_nheads,
         dim_feedforward=args.dim_feedforward,
         num_decoder_layers=args.dec_layers,
         normalize_before=args.pre_norm,
@@ -218,18 +214,24 @@ def build_transformer(args):
         backbone_name=args.pretrained_model,
         activation="gelu",
         cross_first = args.cross_first,
-        hid_dim_old=args.hid_dim_old,
     )
 
-    if args.pretrained_detr:
-        state_dict = torch.load(args.detr_pretrain_dir)
-
-        for old_key, old_val in list(state_dict['model'].items()):
-            del state_dict['model'][old_key]
-            new_key = old_key.replace('transformer.','')
-            state_dict['model'][new_key] = old_val
-
-        ret = transformer.load_state_dict(state_dict['model'], strict=False)
+    # if os.path.exists(args.detr_pretrain_dir)>0:
+    #     state_dict = torch.load(args.detr_pretrain_dir)
+    #
+    #     for old_key, old_val in list(state_dict['model'].items()):
+    #         if any(k in old_key for k in ['encoder', 'backbone']) : # delete unnecessary kwys with enoder,bconv backbone as on decoder weight is needed
+    #             del state_dict['model'][old_key]
+    #         else:
+    #             del state_dict['model'][old_key]
+    #             new_key = old_key.replace('transformer.', '')
+    #             state_dict['model'][new_key] = old_val
+    #
+    #     ret = non_strict_load_state_dict(transformer, state_dict['model'])
+    #
+    #     print('Missing keys when loading pretrained weights: {}'.format(ret.missing_keys))
+    #     print('Unexpected keys when loading pretrained weights: {}'.format(ret.unexpected_keys))
+    #     print('Loaded Detr weight from %s'%args.detr_pretrain_dir)
 
     return transformer
 
