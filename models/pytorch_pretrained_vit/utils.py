@@ -111,15 +111,22 @@ def load_pretrained_weights(
     #         state_dict[f'transformer.blocks.{i}.norm2.weight'] = state_dict['model'].pop(f'blocks.{i}.norm2.weight')
     #         state_dict[f'transformer.blocks.{i}.norm2.bias'] = state_dict['model'].pop(f'blocks.{i}.norm2.bias')
     # Change size of positional embeddings
-    if resize_positional_embedding: 
-        posemb = state_dict['positional_embedding.pos_embedding'] #TODO: check deit vs vit
-        posemb_new = model.state_dict()['positional_embedding.pos_embedding']
-        print(posemb_new.shape)
-        state_dict['positional_embedding.pos_embedding'] = \
-            resize_positional_embedding_(posemb=posemb, posemb_new=posemb_new, 
-                has_class_token=hasattr(model, 'class_token'),gs_old = old_img, gs_new = new_img, distilled_token=distilled)
-        maybe_print('Resized positional embeddings from {} to {}'.format(
-                    posemb.shape, posemb_new.shape), verbose)
+    if resize_positional_embedding:
+        if deit:
+            posemb = state_dict['pos_embed']
+            posemb_new = model.state_dict()['pos_embed']
+            state_dict['pos_embed'] = \
+                resize_positional_embedding_(posemb=posemb, posemb_new=posemb_new,
+                                             has_class_token=hasattr(model, 'cls_token'), gs_old=old_img,
+                                             gs_new=new_img, distilled_token=distilled)
+            maybe_print('Resized positional embeddings from {} to {}'.format(
+                posemb.shape, posemb_new.shape), verbose)
+            print(state_dict['pos_embed'].shape)
+        else: #todo fix vit path
+            posemb = state_dict['positional_embedding.pos_embedding'] #TODO: check deit vs vit
+            posemb_new = model.state_dict()['positional_embedding.pos_embedding']
+            print(posemb_new.shape)
+
     # if model.distilled:
     #     state_dict['positional_embedding.pos_embedding'] = state_dict['positional_embedding.pos_embedding'][:]
 
@@ -172,9 +179,9 @@ def resize_positional_embedding_(posemb, posemb_new, has_class_token=True, gs_ol
         posemb_grid = posemb_grid.reshape(1, gs_new[0]*gs_new[1], -1)
         posemb_grid = torch.from_numpy(posemb_grid)
     else :
-        posemb = torch.unsqueeze(posemb_grid.permute(2, 0, 1),dim =0)
-        pos_emb = torch.nn.functional.interpolate(posemb, size=(gs_new[0], gs_new[1]), mode='bicubic', align_corners=False)
-        posemb_grid = pos_emb.permute(0,2,3,1).flatten(1,2)
+        posemb_grid = torch.unsqueeze(posemb_grid.permute(2, 0, 1),dim =0)
+        posemb_grid = torch.nn.functional.interpolate(posemb_grid, size=(gs_new[0], gs_new[1]), mode='bicubic', align_corners=False)
+        posemb_grid = posemb_grid.permute(0,2,3,1).flatten(1,2)
 
     # Deal with class token and return
     posemb = torch.cat([posemb_tok, posemb_grid], dim=1)

@@ -401,7 +401,8 @@ def build(args):
                                     drop_rate=args.dropout,
                                     drop_path_rate=args.drop_path,
                                     drop_block_rate=None,
-                                    skip_connection = args.skip_connection
+                                    skip_connection = args.skip_connection,
+                                    img_size= args.img_width #todo for variable im wdith and heoight
                                 )
         # Make detr d_model compatible with deit
         args.hidden_dim = backbone.embed_dim
