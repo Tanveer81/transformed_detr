@@ -39,7 +39,7 @@ def get_args_parser():
                         help="ViT pre-trained model type")
     parser.add_argument('--pretrain_dir', default='/nfs/data3/koner/data/checkpoints/vit_detr/B_16_imagenet1k.pth',
                         help='path to load wight of pre train classification')
-    parser.add_argument('--detr_pretrain_dir', default='/nfs/data3/koner/data/checkpoints/vit_detr/detr/detr-r50-e632da11.pth',
+    parser.add_argument('--detr_pretrain_dir', default='',
                         help='path to load wight of pre train classification')
     parser.add_argument('--random_image_size', default=False, action='store_true')
     parser.add_argument('--img_width', default=384, type=int)
