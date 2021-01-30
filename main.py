@@ -58,8 +58,8 @@ def get_args_parser():
     parser.add_argument('--pool', default='max', type=str, choices=('max', 'avg'))
     parser.add_argument('--augment', default=False, action='store_true')
     parser.add_argument('--opt', default='AdamW', type=str, choices=('AdamW', 'SGD'))
-    parser.add_argument('--drop-path', type=float, default=0.1, metavar='PCT',
-                        help='Drop path rate (default: 0.1)')
+    parser.add_argument('--drop_path', type=float, default=0., metavar='PCT',
+                        help='Drop path rate (default: 0.)')
     parser.add_argument('--print_details', default=False, action='store_true')
     parser.add_argument("--cuda_visible_device", nargs="*", type=int, default=[0,1],
                         help="list of index where skip conn will be made")
@@ -154,7 +154,7 @@ def get_args_parser():
 
 def main(args):
     # wandb.login()
-    #os.environ["CUDA_VISIBLE_DEVICES"] = ','.join(map(str, args.cuda_visible_device))
+    os.environ["CUDA_VISIBLE_DEVICES"] = ','.join(map(str, args.cuda_visible_device))
     utils.init_distributed_mode(args)
     print("git:\n  {}\n".format(utils.get_sha()))
 

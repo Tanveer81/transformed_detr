@@ -57,7 +57,8 @@ class SmallObjectAugmentation(object):
             return False
 
     def compute_overlap(self, annot_a, annot_b):
-        if annot_a is None: return False
+        if annot_a is None:
+            return False
         left_max = max(annot_a[0], annot_b[0])
         top_max = max(annot_a[1], annot_b[1])
         right_min = min(annot_a[2], annot_b[2])
