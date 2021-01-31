@@ -96,7 +96,7 @@ class SmallObjectAugmentation(object):
 
     def add_patch_in_img(self, annot, copy_annot, image):
         copy_annot = copy_annot.astype(np.int)
-        image[annot[1]:annot[3], annot[0]:annot[2], :] = image[copy_annot[1]:copy_annot[3], copy_annot[0]:copy_annot[2], :]
+        image[annot[0]:annot[2], annot[1]:annot[3], :] = image[copy_annot[0]:copy_annot[2], copy_annot[1]:copy_annot[3], :]
         return image
 
     def coco2voc(self, image_height, image_width, x1, y1, w, h):
@@ -126,8 +126,10 @@ class SmallObjectAugmentation(object):
         annots = []
         for t, label in zip(target['boxes'], target['labels']):
             annots.append([t[0], t[1], t[2], t[3], label])
-        img, annots = np.array(img), np.array(annots)
-        w, h = img.shape[1], img.shape[0]
+
+        w, h = img.width, img.height
+        # PIL img has w,h format. When converted to np array, it becomes h,w. So need to permute.
+        img, annots = np.array(img).transpose(1, 0, 2), np.array(annots)
 
         tgt_obj_idx = np.where((annots[:, 2] - annots[:, 0])*(annots[:, 3]-annots[:, 1]) < self.thresh)[0]
         if len(tgt_obj_idx) > 0: # all obj are more than threshold
@@ -155,7 +157,7 @@ class SmallObjectAugmentation(object):
                 target['area'] = torch.cat((target['area'], torch.tensor([t[2] - t[0] * t[3] - t[1]], dtype=torch.float32)))
                 target['iscrowd'] = torch.cat((target['iscrowd'], torch.tensor([0], dtype=torch.int64)))
 
-            return {'img': img, 'target': target}
+            return {'img': img.transpose(1, 0, 2), 'target': target}
         else:
             return None
 

@@ -5,18 +5,13 @@ COCO dataset which returns image_id for evaluation.
 Mostly copy-paste from https://github.com/pytorch/vision/blob/13b35ff/references/detection/coco_utils.py
 """
 from pathlib import Path
-
-import numpy as np
 import torch
 import torch.utils.data
 import torchvision
 from torchvision import transforms
 from pycocotools import mask as coco_mask
-
 import datasets.transforms as T
 from datasets.SmallObjectAugmentation import SmallObjectAugmentation
-from models.pytorch_pretrained_vit.configs import PRETRAINED_MODELS
-from models.pytorch_pretrained_vit.vit_pytorch_old import IMAGE_SIZE as vit_image_size
 
 SOA_THRESH = 80 * 80
 SOA_PROB = 0.5
@@ -36,6 +31,7 @@ class CocoDetection(torchvision.datasets.CocoDetection):
         self.prepare = ConvertCocoPolysToMask(return_masks)
 
     def __getitem__(self, idx):
+        print(idx)
         img, target = super(CocoDetection, self).__getitem__(idx)
         image_id = self.ids[idx]
         target = {'image_id': image_id, 'annotations': target}
