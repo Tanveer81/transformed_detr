@@ -4,12 +4,14 @@ COCO dataset which returns image_id for evaluation.
 
 Mostly copy-paste from https://github.com/pytorch/vision/blob/13b35ff/references/detection/coco_utils.py
 """
+import random
 from pathlib import Path
 import torch
 import torch.utils.data
 import torchvision
 from torchvision import transforms
 from pycocotools import mask as coco_mask
+import albumentations as A
 import datasets.transforms as T
 from datasets.SmallObjectAugmentation import SmallObjectAugmentation
 
@@ -21,11 +23,12 @@ SOA_ONE_OBJECT = False
 SOA_ALL_OBJECTS = False
 
 class CocoDetection(torchvision.datasets.CocoDetection):
-    def __init__(self, img_folder, ann_file, transforms, return_masks, aug):
+    def __init__(self, img_folder, ann_file, transforms, return_masks, small_augment, color_augmentation=None):
         super(CocoDetection, self).__init__(img_folder, ann_file)
-        self.aug = aug
+        self.small_augment = small_augment
         self._transforms = transforms
-        if aug:
+        self.color_augmentation = color_augmentation
+        if small_augment:
             self._augmentation = SmallObjectAugmentation(SOA_THRESH, SOA_PROB, SOA_COPY_TIMES,
                                                          SOA_EPOCHS, SOA_ALL_OBJECTS, SOA_ONE_OBJECT)
         self.prepare = ConvertCocoPolysToMask(return_masks)
@@ -36,15 +39,20 @@ class CocoDetection(torchvision.datasets.CocoDetection):
         target = {'image_id': image_id, 'annotations': target}
         img, target = self.prepare(img, target)
 
-        if self.aug:
+        # Copy small objects multiple times randomly
+        if self.small_augment:
             sample = self._augmentation(img, target)
             if sample is not None:
                 img, target = sample['img'], sample['target']
                 img = transforms.ToPILImage()(img)
 
+        # Spacial transformations/ augmentations
         if self._transforms is not None:
             img, target = self._transforms(img, target)
 
+        # Color/ pixes wise augmentations
+        if self.color_augmentation is not None:
+            img = self.color_augmentation(image=img)["image"]
         return img, target
 
 
@@ -161,6 +169,19 @@ def make_coco_transforms(image_set):
 
     raise ValueError(f'unknown {image_set}')
 
+def color_augmentation(image_set):
+    if image_set == 'train':
+        aug_list = [
+            A.RandomBrightnessContrast(), A.RandomBrightnessContrast(contrast_limit=0.),
+            A.RandomBrightnessContrast(brightness_limit=0.), A.RGBShift(), A.HueSaturationValue(),
+            A.ChannelShuffle(), A.CLAHE(), A.RandomGamma(), A.Blur(), A.ToGray(), A.ToSepia(),]
+        # Return random augmentation with 0.5 probability
+        return random.choice([A.NoOp(), random.choice(aug_list)])
+
+    elif image_set == 'val':
+        return A.NoOp()
+
+    raise ValueError(f'unknown {image_set}')
 
 def make_coco_transforms_ViT(image_set, image_size, max=None):
 
@@ -208,11 +229,12 @@ def build(image_set, args):
     img_folder, ann_file = PATHS[image_set]
 
     # Use transformer for ViT
+    color_augment = color_augmentation(image_set) if args.color_augment else None
     if args.backbone in ("ViT", "Deit"):
         if args.random_image_size:
-            dataset = CocoDetection(img_folder, ann_file, transforms=make_coco_transforms(image_set), return_masks=args.masks, aug=args.augment)
+            dataset = CocoDetection(img_folder, ann_file, transforms=make_coco_transforms(image_set), return_masks=args.masks, small_augment=args.small_augment, color_augmentation = color_augment)
         else:
-            dataset = CocoDetection(img_folder, ann_file, transforms=make_coco_transforms_ViT(image_set, args.img_size, None), return_masks=args.masks, aug=args.augment)
+            dataset = CocoDetection(img_folder, ann_file, transforms=make_coco_transforms_ViT(image_set, args.img_size, None), return_masks=args.masks, small_augment=args.small_augment, color_augmentation = color_augment)
     else:
         dataset = CocoDetection(img_folder, ann_file, transforms=make_coco_transforms(image_set), return_masks=args.masks, aug=args.augment)
 

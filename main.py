@@ -56,7 +56,8 @@ def get_args_parser():
     parser.add_argument('--hierarchy', default=False, action='store_true')
     parser.add_argument('--only_weight', action='store_true', help='used for coco trainined detector')
     parser.add_argument('--pool', default='max', type=str, choices=('max', 'avg'))
-    parser.add_argument('--augment', default=False, action='store_true')
+    parser.add_argument('--small_augment', default=False, action='store_true')
+    parser.add_argument('--color_augment', default=False, action='store_true')
     parser.add_argument('--opt', default='AdamW', type=str, choices=('AdamW', 'SGD'))
     parser.add_argument('--drop_path', type=float, default=0., metavar='PCT',
                         help='Drop path rate (default: 0.)')
@@ -486,10 +487,10 @@ if __name__ == '__main__':
     if not args.output_dir:  # create output dir as per experiment name in exp folder
         args.output_dir = './exp/' + args.experiment_name
     Path(args.output_dir).mkdir(parents=True, exist_ok=True)
-    # main(args)
+    main(args)
     # model = inference(args, resume = '/nfs/data3/koner/data/checkpoints/vit_detr/exp/skip_connection_wdNorm/checkpoint.pth', skip_connection=True)
     # model = inference(args, resume='/mnt/data/hannan/deit/deit_base_patch16_224-b5f2ef4d.pth', skip_connection=False)
     # model = inference(args=None, resume='/nfs/data3/koner/data/checkpoints/vit_detr/exp/skip_connection_592_432/checkpoint.pth',skip_connection=True)
     # print(model)
     # print("done")
-    dataloader_tester(args)
+    # dataloader_tester(args)
