@@ -85,7 +85,7 @@ class DETR(nn.Module):
         if not isinstance(samples, torch.Tensor):
             samples = samples.tensors
 
-        if patch:
+        if patch: # TODO hardcoded for 224x224 patch and 560x560 image
             patch_size = (224,224)
             step = (112,112)
             samples, n_patch = patchify(samples, patch_size, step)
@@ -116,7 +116,7 @@ class DETR(nn.Module):
             src_token = self.hidden_dim_proj_src(src_token)
             pos_token = self.hidden_dim_proj_pos(pos_token)
 
-        if patch:
+        if patch: # TODO hardcoded for 224x224 patch and 560x560 image
             patch_size = (14,14)
             step = (7,7)
             src_token = src_token.view(-1,n_patch[0],n_patch[1],14,14,256).permute(0,5,1,2,3,4)
