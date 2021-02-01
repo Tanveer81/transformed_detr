@@ -234,7 +234,11 @@ def build(image_set, args):
         if args.random_image_size:
             dataset = CocoDetection(img_folder, ann_file, transforms=make_coco_transforms(image_set), return_masks=args.masks, small_augment=args.small_augment, color_augmentation = color_augment)
         else:
+<<<<<<< HEAD
             dataset = CocoDetection(img_folder, ann_file, transforms=make_coco_transforms_ViT(image_set, args.img_size, None), return_masks=args.masks, small_augment=args.small_augment, color_augmentation = color_augment)
+=======
+            dataset = CocoDetection(img_folder, ann_file, transforms=make_coco_transforms_ViT(image_set, args.data_size, None), return_masks=args.masks, aug=args.augment)
+>>>>>>> 56cb477cfe8ccfdcd3e97b7b3c09dae7c17e264d
     else:
         dataset = CocoDetection(img_folder, ann_file, transforms=make_coco_transforms(image_set), return_masks=args.masks, aug=args.augment)
 
