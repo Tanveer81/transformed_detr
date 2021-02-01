@@ -14,7 +14,7 @@ from timm import create_model
 from util import box_ops
 from util.misc import (NestedTensor, nested_tensor_from_tensor_list,
                        accuracy, get_world_size, interpolate,
-                       is_dist_avail_and_initialized)
+                       is_dist_avail_and_initialized, patchify, unpatchify)
 
 from .backbone import build_backbone
 from .matcher import build_matcher
@@ -65,7 +65,7 @@ class DETR(nn.Module):
             self.hidden_dim_proj_src = nn.Linear(self.backbone_dim, transformer.d_model)
             self.hidden_dim_proj_pos = nn.Linear(self.backbone_dim, transformer.d_model)
 
-    def forward(self, samples: NestedTensor):
+    def forward(self, samples: NestedTensor, patch=True):
         """ The forward expects a NestedTensor, which consists of:
                - samples.tensor: batched images, of shape [batch_size x 3 x H x W]
                - samples.mask: a binary mask of shape [batch_size x H x W], containing 1 on padded pixels
@@ -84,6 +84,12 @@ class DETR(nn.Module):
             samples = nested_tensor_from_tensor_list(samples)
         if not isinstance(samples, torch.Tensor):
             samples = samples.tensors
+
+        if patch:
+            patch_size = (224,224)
+            step = (112,112)
+            samples, n_patch = patchify(samples, patch_size, step)
+        
         src, pos = self.backbone(samples)
 
         if self.deit:
@@ -109,6 +115,19 @@ class DETR(nn.Module):
         if self.backbone_dim != self.transformer.d_model:
             src_token = self.hidden_dim_proj_src(src_token)
             pos_token = self.hidden_dim_proj_pos(pos_token)
+
+        if patch:
+            patch_size = (14,14)
+            step = (7,7)
+            src_token = src_token.view(-1,n_patch[0],n_patch[1],14,14,256).permute(0,5,1,2,3,4)
+            src_token = unpatchify(src_token, step)
+            src_token = src_token.view(-1,256,35*35).permute(0,2,1)
+
+            pos_token = pos_token.repeat(16,1,1)
+            pos_token = pos_token.view(-1,n_patch[0],n_patch[1],14,14,256).permute(0,5,1,2,3,4)
+            pos_token = unpatchify(pos_token, step)
+            pos_token = pos_token.view(-1,256,35*35).permute(0,2,1)
+
         hs = self.transformer(src_token, mask, self.query_embed.weight, pos_token)
 
         outputs_class = self.class_embed(hs)

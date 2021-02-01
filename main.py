@@ -44,6 +44,8 @@ def get_args_parser():
     parser.add_argument('--random_image_size', default=False, action='store_true')
     parser.add_argument('--img_width', default=384, type=int)
     parser.add_argument('--img_height', default=384, type=int)
+    parser.add_argument('--data_width', default=560, type=int)
+    parser.add_argument('--data_height', default=560, type=int)
     parser.add_argument('--backbone_nheads', default=12, type=int,
                         help="Number of attention heads inside the transformer's attentions")
     parser.add_argument('--detr_nheads', default=8, type=int,
@@ -51,7 +53,7 @@ def get_args_parser():
     parser.add_argument('--enc_layers', default=12, type=int,
                         help="Number of encoding layers in the transformer")
     parser.add_argument('--include_class_token', default=False, action='store_true')
-    parser.add_argument("--skip_connection", nargs="*", type=int, default=[2, 5, 8], help="list of index where skip conn will be made")
+    parser.add_argument("--skip_connection", nargs="*", type=int, default=list(range(0,12)), help="list of index where skip conn will be made")
     # parser.add_argument('--skip_connection', default=False, action='store_true')
     parser.add_argument('--hierarchy', default=False, action='store_true')
     parser.add_argument('--only_weight', action='store_true', help='used for coco trainined detector')
@@ -482,14 +484,15 @@ if __name__ == '__main__':
     # if args.deit and args.pretrained_vit:
     #     assert 'deit' in args.pretrain_dir, 'for pretraining with deit please load deit checkpoint'
     args.img_size = (args.img_width, args.img_height)
+    args.data_size = (args.data_height, args.data_width)
     print(args)
     if not args.output_dir:  # create output dir as per experiment name in exp folder
         args.output_dir = './exp/' + args.experiment_name
     Path(args.output_dir).mkdir(parents=True, exist_ok=True)
-    # main(args)
+    main(args)
     # model = inference(args, resume = '/nfs/data3/koner/data/checkpoints/vit_detr/exp/skip_connection_wdNorm/checkpoint.pth', skip_connection=True)
     # model = inference(args, resume='/mnt/data/hannan/deit/deit_base_patch16_224-b5f2ef4d.pth', skip_connection=False)
     # model = inference(args=None, resume='/nfs/data3/koner/data/checkpoints/vit_detr/exp/skip_connection_592_432/checkpoint.pth',skip_connection=True)
     # print(model)
     # print("done")
-    dataloader_tester(args)
+    # dataloader_tester(args)
