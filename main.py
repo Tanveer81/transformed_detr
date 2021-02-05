@@ -6,6 +6,7 @@ import random
 import time
 from pathlib import Path
 import os
+os.environ['JOBLIB_TEMP_FOLDER'] = '/home/wiss/koner/'
 import numpy as np
 import torch
 from torch.utils.data import DataLoader, DistributedSampler
@@ -39,7 +40,7 @@ def get_args_parser():
                         help="ViT pre-trained model type")
     parser.add_argument('--pretrain_dir', default='/nfs/data3/koner/data/checkpoints/vit_detr/B_16_imagenet1k.pth',
                         help='path to load wight of pre train classification')
-    parser.add_argument('--detr_pretrain_dir', default='/nfs/data3/koner/data/checkpoints/vit_detr/detr/detr-r50-e632da11.pth',
+    parser.add_argument('--detr_pretrain_dir', default='',
                         help='path to load wight of pre train classification')
     parser.add_argument('--random_image_size', default=False, action='store_true')
     parser.add_argument('--img_width', default=384, type=int)
@@ -61,7 +62,7 @@ def get_args_parser():
     parser.add_argument('--drop-path', type=float, default=0.1, metavar='PCT',
                         help='Drop path rate (default: 0.1)')
     parser.add_argument('--print_details', default=False, action='store_true')
-    parser.add_argument("--cuda_visible_device", nargs="*", type=int, default=[0,1],
+    parser.add_argument("--cuda_visible_device", nargs="*", type=int, default=None,
                         help="list of index where skip conn will be made")
 
     # Training
@@ -153,8 +154,10 @@ def get_args_parser():
 
 
 def main(args):
+    #os.environ["CUDA_VISIBLE_DEVICES"] = '0,1'
     # wandb.login()
-    #os.environ["CUDA_VISIBLE_DEVICES"] = ','.join(map(str, args.cuda_visible_device))
+    if args.cuda_visible_device is not None:
+        os.environ["CUDA_VISIBLE_DEVICES"] = ','.join(map(str, args.cuda_visible_device))
     utils.init_distributed_mode(args)
     print("git:\n  {}\n".format(utils.get_sha()))
 
@@ -197,7 +200,7 @@ def main(args):
         print("Train with SGD")
         optimizer = torch.optim.SGD(param_dicts, lr=args.lr, weight_decay=args.weight_decay)
     #lr_scheduler = torch.optim.lr_scheduler.StepLR(optimizer, args.lr_drop)
-    lr_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'max', patience=3, factor=0.8,
+    lr_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'max', patience=5, factor=0.8,
                                    verbose=True, threshold=0.001, threshold_mode='abs', cooldown=1)
 
     dataset_train = build_dataset(image_set='train', args=args)
@@ -205,8 +208,10 @@ def main(args):
     dataset_val = build_dataset(image_set='val', args=args)
 
     if args.distributed:
-        sampler_train = DistributedSampler(dataset_train)
-        sampler_val = DistributedSampler(dataset_val, shuffle=False)
+        num_tasks = utils.get_world_size()
+        global_rank = utils.get_rank()
+        sampler_train = DistributedSampler(dataset_train, num_replicas=num_tasks, rank=global_rank)
+        sampler_val = DistributedSampler(dataset_val, num_replicas=num_tasks, rank=global_rank, shuffle=False)
     else:
         sampler_train = torch.utils.data.RandomSampler(dataset_train)
         sampler_val = torch.utils.data.SequentialSampler(dataset_val)
@@ -215,10 +220,10 @@ def main(args):
         sampler_train, args.batch_size, drop_last=True)
 
     data_loader_train = DataLoader(dataset_train, batch_sampler=batch_sampler_train,
-                                   collate_fn=utils.collate_fn, num_workers=args.num_workers)
+                                   collate_fn=utils.collate_fn, num_workers=args.num_workers,pin_memory=True)
     data_loader_val = DataLoader(dataset_val, args.batch_size, sampler=sampler_val,
                                  drop_last=False, collate_fn=utils.collate_fn,
-                                 num_workers=args.num_workers)
+                                 num_workers=args.num_workers,pin_memory=True)
 
     if args.dataset_file == "coco_panoptic":
         # We also evaluate AP during panoptic training, on original coco DS
@@ -272,7 +277,8 @@ def main(args):
         return
 
     # Create tensorboard writer
-    writer = SummaryWriter(comment=args.experiment_name)
+    if os.environ.get("RANK", "0") == "0":
+        writer = SummaryWriter(comment=args.experiment_name)
 
     # tell wandb to get started
     # if os.environ.get("RANK", "0") == "0":
@@ -331,19 +337,19 @@ def main(args):
             'AR_IoU=0.50:0.95_large_maxDets=100',
         ]
 
-        # if os.environ.get("RANK", "0") == "0":
-        for metric, iou in zip(map_keys, coco_evaluator.coco_eval['bbox'].stats.tolist()):
-            writer.add_scalar(metric, iou, epoch)
-            # wandb.log({metric: iou, 'epoch': epoch})
+        if os.environ.get("RANK", "0") == "0":
+            for metric, iou in zip(map_keys, coco_evaluator.coco_eval['bbox'].stats.tolist()):
+                writer.add_scalar(metric, iou, epoch)
+                # wandb.log({metric: iou, 'epoch': epoch})
 
-        for k, v in train_stats.items():
-            if isinstance(v, float):
-                writer.add_scalar(f'train_{k}', v, epoch)
-                # wandb.log({f'train_{k}': v, 'epoch': epoch})
-        for k, v in test_stats.items():
-            if isinstance(v, float):
-                writer.add_scalar(f'test_{k}', v, epoch)
-                # wandb.log({f'test_{k}': v, 'epoch': epoch})
+            for k, v in train_stats.items():
+                if isinstance(v, float):
+                    writer.add_scalar(f'train_{k}', v, epoch)
+                    # wandb.log({f'train_{k}': v, 'epoch': epoch})
+            for k, v in test_stats.items():
+                if isinstance(v, float):
+                    writer.add_scalar(f'test_{k}', v, epoch)
+                    # wandb.log({f'test_{k}': v, 'epoch': epoch})
 
         if args.output_dir and utils.is_main_process():
             with (output_dir / "log.txt").open("a") as f:
