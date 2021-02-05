@@ -45,6 +45,8 @@ def get_args_parser():
     parser.add_argument('--random_image_size', default=False, action='store_true')
     parser.add_argument('--img_width', default=384, type=int)
     parser.add_argument('--img_height', default=384, type=int)
+    parser.add_argument('--data_width', default=560, type=int)
+    parser.add_argument('--data_height', default=560, type=int)
     parser.add_argument('--backbone_nheads', default=12, type=int,
                         help="Number of attention heads inside the transformer's attentions")
     parser.add_argument('--detr_nheads', default=8, type=int,
@@ -52,15 +54,16 @@ def get_args_parser():
     parser.add_argument('--enc_layers', default=12, type=int,
                         help="Number of encoding layers in the transformer")
     parser.add_argument('--include_class_token', default=False, action='store_true')
-    parser.add_argument("--skip_connection", nargs="*", type=int, default=[2, 5, 8], help="list of index where skip conn will be made")
+    parser.add_argument("--skip_connection", nargs="*", type=int, default=list(range(0,12)), help="list of index where skip conn will be made")
     # parser.add_argument('--skip_connection', default=False, action='store_true')
     parser.add_argument('--hierarchy', default=False, action='store_true')
     parser.add_argument('--only_weight', action='store_true', help='used for coco trainined detector')
     parser.add_argument('--pool', default='max', type=str, choices=('max', 'avg'))
-    parser.add_argument('--augment', default=False, action='store_true')
+    parser.add_argument('--small_augment', default=False, action='store_true')
+    parser.add_argument('--color_augment', default=False, action='store_true')
     parser.add_argument('--opt', default='AdamW', type=str, choices=('AdamW', 'SGD'))
-    parser.add_argument('--drop-path', type=float, default=0.1, metavar='PCT',
-                        help='Drop path rate (default: 0.1)')
+    parser.add_argument('--drop_path', type=float, default=0., metavar='PCT',
+                        help='Drop path rate (default: 0.)')
     parser.add_argument('--print_details', default=False, action='store_true')
     parser.add_argument("--cuda_visible_device", nargs="*", type=int, default=None,
                         help="list of index where skip conn will be made")
@@ -375,6 +378,29 @@ def main(args):
     writer.close()
 
 
+def dataloader_tester(args):
+    # fix the seed for reproducibility
+    seed = args.seed + utils.get_rank()
+    torch.manual_seed(seed)
+    np.random.seed(seed)
+    random.seed(seed)
+    dataset_train = build_dataset(image_set='train', args=args)
+    dataset_val = build_dataset(image_set='val', args=args)
+    sampler_train = torch.utils.data.RandomSampler(dataset_train)
+    sampler_val = torch.utils.data.SequentialSampler(dataset_val)
+    batch_sampler_train = torch.utils.data.BatchSampler(sampler_train, args.batch_size, drop_last=True)
+    data_loader_train = DataLoader(dataset_train, batch_sampler=batch_sampler_train,collate_fn=utils.collate_fn, num_workers=args.num_workers)
+    data_loader_val = DataLoader(dataset_val, args.batch_size, sampler=sampler_val,drop_last=False, collate_fn=utils.collate_fn,num_workers=args.num_workers)
+
+    i = 0
+    for samples, targets in data_loader_train:
+        i = i + 1
+
+    i = 0
+    for samples, targets in data_loader_val:
+        i = i + 1
+
+
 def inference(args=None, resume='', skip_connection=False, img_width=384, img_height=384):
     if args==None:
         parser = argparse.ArgumentParser('DETR training and evaluation script',
@@ -465,6 +491,7 @@ if __name__ == '__main__':
     # if args.deit and args.pretrained_vit:
     #     assert 'deit' in args.pretrain_dir, 'for pretraining with deit please load deit checkpoint'
     args.img_size = (args.img_width, args.img_height)
+    args.data_size = (args.data_height, args.data_width)
     print(args)
     if not args.output_dir:  # create output dir as per experiment name in exp folder
         args.output_dir = './exp/' + args.experiment_name
@@ -475,3 +502,4 @@ if __name__ == '__main__':
     # model = inference(args=None, resume='/nfs/data3/koner/data/checkpoints/vit_detr/exp/skip_connection_592_432/checkpoint.pth',skip_connection=True)
     # print(model)
     # print("done")
+    # dataloader_tester(args)

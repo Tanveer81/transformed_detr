@@ -16,22 +16,20 @@ import torch
 import torch.nn.functional as F
 from torch import nn, Tensor
 from .pytorch_pretrained_vit.utils import non_strict_load_state_dict
-
-DEBUG = False
-
+from timm.models.layers import DropPath
 
 class Transformer(nn.Module):
 
     def __init__(self, d_model=512, nhead=8, num_decoder_layers=6, dim_feedforward=2048, dropout=0.1,
                  activation="relu", normalize_before=False,
-                 return_intermediate_dec=False, backbone_name = 'resnet', cross_first=False):
+                 return_intermediate_dec=False, backbone_name = 'resnet', cross_first=False, drop_path=0.):
         super().__init__()
 
         # In case of ViT backbone, self.backbone changes to "ViT" from detr
         self.backbone = backbone_name
         # Only use encoder for resnet backbone and not for ViT
         decoder_layer = TransformerDecoderLayer(d_model, nhead, dim_feedforward,
-                                                dropout, activation, normalize_before,cross_first)
+                                                dropout, activation, normalize_before,cross_first,drop_path=drop_path)
 
         decoder_norm = nn.LayerNorm(d_model)
         self.decoder = TransformerDecoder(decoder_layer, num_decoder_layers, decoder_norm,
@@ -106,8 +104,9 @@ class TransformerDecoder(nn.Module):
 class TransformerDecoderLayer(nn.Module):
 
     def __init__(self, d_model, nhead, dim_feedforward=2048, dropout=0.1,
-                 activation="relu", normalize_before=False, cross_first=False):
+                 activation="relu", normalize_before=False, cross_first=False, drop_path=0.):
         super().__init__()
+        assert not (dropout>0. and drop_path>0.), 'dropout and drop_path cannot both be greater than 0.'
         self.cross_first=cross_first
         self.self_attn = nn.MultiheadAttention(d_model, nhead, dropout=dropout)
         self.multihead_attn = nn.MultiheadAttention(d_model, nhead, dropout=dropout)
@@ -127,6 +126,9 @@ class TransformerDecoderLayer(nn.Module):
         self.normalize_before = normalize_before
         self.d_model = d_model
 
+        # NOTE: drop path for stochastic depth, we shall see if this is better than dropout here
+        self.drop_path = DropPath(drop_path) if drop_path > 0. else nn.Identity()
+
     def with_pos_embed(self, tensor, pos: Optional[Tensor]):
         return tensor if pos is None else tensor + pos #todo with no positional embedding for testing
 
@@ -137,6 +139,9 @@ class TransformerDecoderLayer(nn.Module):
                      memory_key_padding_mask: Optional[Tensor] = None,
                      pos: Optional[Tensor] = None,
                      query_pos: Optional[Tensor] = None):
+
+        # Perform cross attention between encoder values and decoder queries
+        # Then perform self attention between decoder object queries
         if self.cross_first: # 1st aplly decoder to all image attn
             tgt2 = self.multihead_attn(query=self.with_pos_embed(tgt, query_pos),
                                        key=self.with_pos_embed(memory, pos),
@@ -144,20 +149,27 @@ class TransformerDecoderLayer(nn.Module):
                                        key_padding_mask=memory_key_padding_mask)[0]
             tgt = tgt + self.dropout2(tgt2)
             tgt = self.norm2(tgt)
-        q = k = self.with_pos_embed(tgt, query_pos) #tgt if self.cross_first else  todo experiment wdout pos emebeding as for cross attn its already done earlier
-        tgt2 = self.self_attn(q, k, value=tgt, attn_mask=tgt_mask,
-                              key_padding_mask=tgt_key_padding_mask)[0]
-        tgt = tgt + self.dropout1(tgt2)
-        tgt = self.norm1(tgt)
-        if not self.cross_first:
+
+            q = k = self.with_pos_embed(tgt, query_pos) #tgt if self.cross_first else  todo experiment wdout pos emebeding as for cross attn its already done earlier
+            tgt2 = self.self_attn(q, k, value=tgt, attn_mask=tgt_mask,key_padding_mask=tgt_key_padding_mask)[0]
+            tgt = tgt + self.drop_path(self.dropout1(tgt2))
+            tgt = self.norm1(tgt)
+
+        # pPerform self attention between decoder object queries first
+        else:
+            q = k = self.with_pos_embed(tgt, query_pos)  # tgt if self.cross_first else  todo experiment wdout pos emebeding as for cross attn its already done earlier
+            tgt2 = self.self_attn(q, k, value=tgt, attn_mask=tgt_mask, key_padding_mask=tgt_key_padding_mask)[0]
+            tgt = tgt + self.dropout1(tgt2)
+            tgt = self.norm1(tgt)
+
             tgt2 = self.multihead_attn(query=self.with_pos_embed(tgt, query_pos),
                                        key=self.with_pos_embed(memory, pos),
                                        value=self.with_pos_embed(memory, None), attn_mask=memory_mask,
                                        key_padding_mask=memory_key_padding_mask)[0]
-            tgt = tgt + self.dropout2(tgt2)
+            tgt = tgt + self.drop_path(self.dropout2(tgt2))
             tgt = self.norm2(tgt)
         tgt2 = self.linear2(self.dropout(self.activation(self.linear1(tgt))))
-        tgt = tgt + self.dropout3(tgt2)
+        tgt = tgt + self.drop_path(self.dropout3(tgt2))
         tgt = self.norm3(tgt)
         return tgt
 
@@ -203,7 +215,7 @@ def _get_clones(module, N):
 
 
 def build_transformer(args):
-    transformer =  Transformer(
+    transformer = Transformer(
         d_model=args.hidden_dim,
         dropout=args.dropout,
         nhead=args.detr_nheads,
@@ -214,6 +226,7 @@ def build_transformer(args):
         backbone_name=args.pretrained_model,
         activation="gelu",
         cross_first = args.cross_first,
+        drop_path = args.drop_path
     )
 
     # if os.path.exists(args.detr_pretrain_dir)>0:

@@ -11,8 +11,11 @@ from collections import defaultdict, deque
 import datetime
 import pickle
 from typing import Optional, List
+import numpy as np
+from itertools import product
 
 import torch
+import torch.nn.functional as F
 import torch.distributed as dist
 from torch import Tensor
 
@@ -465,3 +468,67 @@ def interpolate(input, size=None, scale_factor=None, mode="nearest", align_corne
         return _new_empty_tensor(input, output_shape)
     else:
         return torchvision.ops.misc.interpolate(input, size, scale_factor, mode, align_corners)
+
+
+def patchify(volume, patch_size, step):
+    """
+
+    :param volume:
+    :param patch_size:
+    :param step:
+    :return:
+    """
+    assert len(volume.shape) == 4
+
+    n_b, n_c, v_h, v_w = volume.shape
+
+    s_h, s_w = step
+
+    p_h, p_w = patch_size
+
+    # Calculate the number of patch in each axis
+    n_w = np.ceil(1.0*(v_w-p_w)/s_w+1)
+    n_h = np.ceil(1.0*(v_h-p_h)/s_h+1)
+
+    n_w = int(n_w)
+    n_h = int(n_h)
+
+    pad_w = (n_w - 1) * s_w + p_w - v_w
+    pad_h = (n_h - 1) * s_h + p_h - v_h
+    # print(volume.shape, (0, pad_h, 0, pad_w, 0, pad_d))
+    volume = F.pad(volume, (0, pad_w, 0, pad_h), 'replicate')
+    # print(volume.shape)
+    patches = torch.zeros((n_b, n_c, n_h, n_w,)+patch_size, dtype=volume.dtype).cuda()
+
+    for i, j in product(range(n_h), range(n_w)):
+        patches[:, :, i, j] = volume[:, :, (i * s_h):(i * s_h) + p_h, (j * s_w):(j * s_w) + p_w]
+
+    return patches.permute(0,2,3,1,4,5).reshape((-1,n_c,)+patch_size), (n_h, n_w)
+
+
+def unpatchify(patches, step):
+    """
+
+    :param patches:
+    :param step:
+    :param imsize:
+    :param scale_factor:
+    :return:
+    """
+    assert len(patches.shape) == 6
+    s_h, s_w = step
+    b, c, n_h, n_w, p_h, p_w = patches.shape
+
+    v_w = (n_w - 1) * s_w + p_w
+    v_h = (n_h - 1) * s_h + p_h
+
+    volume = torch.zeros((b, c, v_h, v_w), dtype=patches.dtype).cuda()
+    divisor = torch.zeros((b, c, v_h, v_w), dtype=patches.dtype).cuda()
+#     print(volume.shape, imsize)
+
+    for i, j in product(range(n_h), range(n_w)):
+        patch = patches[:,:,i, j]
+        volume[:,:, (i * s_h):(i * s_h) + p_h, (j * s_w):(j * s_w) + p_w] += patch
+        divisor[:,:, (i * s_h):(i * s_h) + p_h, (j * s_w):(j * s_w) + p_w] += 1
+    volume /= divisor
+    return volume
