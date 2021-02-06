@@ -19,10 +19,10 @@ __all__ = [
 
 class OverrideVisionTransformer(VisionTransformer):
     def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
         self.skip_connection = kwargs.pop('skip_connection')
         self.reduce_feature = kwargs.pop('reduce_feature')
         embedd_dim = kwargs.pop('embed_dim')
+        super().__init__(*args, **kwargs)
         self.lin_proj = nn.Linear(embedd_dim*len(self.skip_connection), embedd_dim)
 
     def forward(self, x):
