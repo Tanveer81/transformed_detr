@@ -90,6 +90,7 @@ def get_args_parser():
     parser.add_argument('--position_embedding', default='1d', type=str,
                         choices=('1d', '2d', 'sine', 'learned'),
                         help="Type of positional embedding to use on top of the image features")
+    parser.add_argument('--reduce_feature', default=False, action='store_true')
 
     # * Transformer
     parser.add_argument('--dec_layers', default=6, type=int,
