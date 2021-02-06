@@ -44,7 +44,7 @@ class OverrideVisionTransformer(VisionTransformer):
 
             for residual in residual_connections:
                 if self.reduce_feature:
-                    x = torch.cat((x, residual), 1)
+                    x = torch.cat((x, residual), 2)
                 else:
                     x = x + residual
         else:
