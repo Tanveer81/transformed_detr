@@ -23,7 +23,7 @@ class OverrideVisionTransformer(VisionTransformer):
         self.reduce_feature = kwargs.pop('reduce_feature')
         embedd_dim = kwargs.pop('embed_dim')
         super().__init__(*args, **kwargs)
-        self.lin_proj = nn.Linear(embedd_dim*len(self.skip_connection), embedd_dim)
+        self.red_feat = nn.Linear(embedd_dim*(len(self.skip_connection)+1), embedd_dim)
 
     def forward(self, x):
         B = x.shape[0]
@@ -52,7 +52,7 @@ class OverrideVisionTransformer(VisionTransformer):
                 x = blk(x)
 
         if self.reduce_feature:
-            x = self.lin_proj(x)
+            x = self.red_feat(x)
 
         x = self.norm(x)
         return x, self.pos_embed
