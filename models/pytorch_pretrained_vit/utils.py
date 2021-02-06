@@ -59,7 +59,7 @@ def load_pretrained_weights(
             raise ValueError(f'Pretrained model for {model_name} has not yet been released')
     else:
         print("Loading weightfrom:",weights_path)
-        state_dict = torch.load(weights_path)
+        state_dict = torch.load(weights_path, map_location='cpu')
 
     # Modifications to load partial state dict
     expected_missing_keys = []
