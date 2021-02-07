@@ -127,10 +127,10 @@ class SmallObjectAugmentation(object):
         for t, label in zip(target['boxes'], target['labels']):
             annots.append([t[0], t[1], t[2], t[3], label])
 
-        w, h = img.width, img.height
+        w, h = img.shape[0], img.shape[1]
         # PIL img has w,h format. When converted to np array, it becomes h,w. So need to permute.
-        img, annots = np.array(img).transpose(1, 0, 2), np.array(annots)
-
+        annots = np.array(annots)
+        # img = np.array(img).transpose(1, 0, 2)
         tgt_obj_idx = np.where((annots[:, 2] - annots[:, 0])*(annots[:, 3]-annots[:, 1]) < self.thresh)[0]
         if len(tgt_obj_idx) > 0: # all obj are more than threshold
             # Refine the copy_object by the given policy
@@ -157,7 +157,7 @@ class SmallObjectAugmentation(object):
                 target['area'] = torch.cat((target['area'], torch.tensor([t[2] - t[0] * t[3] - t[1]], dtype=torch.float32)))
                 target['iscrowd'] = torch.cat((target['iscrowd'], torch.tensor([0], dtype=torch.int64)))
 
-            return {'img': img.transpose(1, 0, 2), 'target': target}
+            return {'img': img, 'target': target}
         else:
             return None
 

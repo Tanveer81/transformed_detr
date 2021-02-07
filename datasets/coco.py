@@ -6,6 +6,7 @@ Mostly copy-paste from https://github.com/pytorch/vision/blob/13b35ff/references
 """
 import random
 from pathlib import Path
+import numpy as np
 import torch
 import torch.utils.data
 import torchvision
@@ -13,6 +14,7 @@ from torchvision import transforms
 from pycocotools import mask as coco_mask
 import albumentations as A
 import datasets.transforms as T
+import torchvision.transforms.functional as F
 from datasets.SmallObjectAugmentation import SmallObjectAugmentation
 
 SOA_THRESH = 80 * 80
@@ -23,12 +25,13 @@ SOA_ONE_OBJECT = False
 SOA_ALL_OBJECTS = False
 
 class CocoDetection(torchvision.datasets.CocoDetection):
-    def __init__(self, img_folder, ann_file, transforms, return_masks, small_augment, color_augmentation=None,image_set='train'):
+    def __init__(self, img_folder, ann_file, transforms, return_masks, small_augment,
+                 mixed_augmentation=None, image_set='train'):
         super(CocoDetection, self).__init__(img_folder, ann_file)
         self.image_set = image_set
         self.small_augment = small_augment
+        self.mixed_augmentation = mixed_augmentation
         self._transforms = transforms
-        self.color_augmentation = color_augmentation
         if small_augment:
             self._augmentation = SmallObjectAugmentation(SOA_THRESH, SOA_PROB, SOA_COPY_TIMES,
                                                          SOA_EPOCHS, SOA_ALL_OBJECTS, SOA_ONE_OBJECT)
@@ -40,20 +43,36 @@ class CocoDetection(torchvision.datasets.CocoDetection):
         target = {'image_id': image_id, 'annotations': target}
         img, target = self.prepare(img, target)
 
+        # Convert PIL image to numpy array, the axis are different so need to transpose
+
+
         # Copy small objects multiple times randomly
-        if self.small_augment and self.image_set=='train':
+        if self.small_augment and self.image_set == 'train':
+            img = np.array(img).transpose(1, 0, 2)
             sample = self._augmentation(img, target)
             if sample is not None:
                 img, target = sample['img'], sample['target']
-                img = transforms.ToPILImage()(img)
-
         # Spacial transformations/ augmentations
-        if self._transforms is not None:
-            img, target = self._transforms(img, target)
+        if self.mixed_augmentation is not None:
+            h, w = img.size
+            for idx, bboxes in enumerate(target['boxes']):
+                bboxes[0], bboxes[2] = bboxes[0] / h, bboxes[2] / h
+                bboxes[1], bboxes[3] = bboxes[1] / w, bboxes[3] / w
+                target['boxes'][idx] = bboxes
+            # Albumentation expects height first and then width in numpy array, so need to transpose.
+            # img = img.transpose(1, 0, 2)
+            img = np.array(img)
+            transformed = self.mixed_augmentation(image=img, bboxes=target['boxes'], category_ids=target['labels'])
+            img = transformed['image']
+            target['boxes'] = torch.tensor(transformed['bboxes'], dtype=torch.float32)
+            # Albumentation returns height first tensor, we need to make it width first
+            # img = img.permute(0, 2, 1)
 
-        # Color/ pixes wise augmentations
-        if self.color_augmentation is not None:
-            img = self.color_augmentation(image=img)["image"]
+        elif self._transforms is not None:
+            # This transformation expects images to be in PIL format. So need too transpose because numpy and PIL axis are different
+            img = img.transpose(1, 0, 2)
+            img = transforms.ToPILImage()(img)
+            img, target = self._transforms(img, target)
         return img, target
 
 
@@ -172,15 +191,39 @@ def make_coco_transforms(image_set):
 
 def color_augmentation(image_set):
     if image_set == 'train':
-        aug_list = [
+        color_aug_list = [
             A.RandomBrightnessContrast(), A.RandomBrightnessContrast(contrast_limit=0.),
             A.RandomBrightnessContrast(brightness_limit=0.), A.RGBShift(), A.HueSaturationValue(),
             A.ChannelShuffle(), A.CLAHE(), A.RandomGamma(), A.Blur(), A.ToGray(), A.ToSepia(),]
-        # Return random augmentation with 0.5 probability
-        return random.choice([A.NoOp(), random.choice(aug_list)])
+        # Return random augmentation with 0.7 probability
+        return random.choices([A.NoOp(), random.choice(color_aug_list)],  weights=[0.3, 0.7])[0]
 
     elif image_set == 'val':
         return A.NoOp()
+
+    raise ValueError(f'unknown {image_set}')
+
+def spatial_augmentation(image_set, image_size):
+    def toTensor(img, **params):
+        return F.to_tensor(img)
+
+    normalize = A.Compose([A.Resize(image_size[0], image_size[1]), #height first for this lobrary
+                          A.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225]),
+                          A.Lambda(p=1, image=toTensor)])
+
+    if image_set == 'train': #todo this 384 is final or we sud think more on size
+        spacial_aug_list = [A.HorizontalFlip(), A.Flip(), #vertical
+            A.Transpose(), A.RandomRotate90(), A.RandomSizedBBoxSafeCrop(384, 600),
+            A.ShiftScaleRotate(), A.LongestMaxSize(),]
+        random_color_aug = color_augmentation(image_set)
+        random_spacial_aug = random.choices([A.NoOp(), random.choice(spacial_aug_list)], weights=[0.3, 0.7])[0]
+        transform = A.Compose([random_spacial_aug, random_color_aug, normalize],
+                    bbox_params=A.BboxParams(format='albumentations', label_fields=['category_ids']))
+        return transform
+
+    if image_set == 'val':
+        return A.Compose(normalize,
+                bbox_params=A.BboxParams(format='albumentations', label_fields=['category_ids']),)
 
     raise ValueError(f'unknown {image_set}')
 
@@ -230,13 +273,17 @@ def build(image_set, args):
     img_folder, ann_file = PATHS[image_set]
 
     # Use transformer for ViT
-    color_augment = color_augmentation(image_set) if args.color_augment else None
+    mixed_augment = spatial_augmentation(image_set, args.img_size) if args.mixed_augment else None
+    transforms = make_coco_transforms_ViT(image_set, args.img_size, None) if not args.mixed_augment else None
     if args.backbone in ("ViT", "Deit"):
         if args.random_image_size:
-            dataset = CocoDetection(img_folder, ann_file, transforms=make_coco_transforms(image_set), return_masks=args.masks, small_augment=args.small_augment, color_augmentation = color_augment,image_set=image_set)
-        else:
-            dataset = CocoDetection(img_folder, ann_file, transforms=make_coco_transforms_ViT(image_set, args.img_size, None), return_masks=args.masks, small_augment=args.small_augment, color_augmentation = color_augment,image_set=image_set)
+            dataset = CocoDetection(img_folder, ann_file, transforms=make_coco_transforms(image_set), return_masks=args.masks, small_augment=args.small_augment, mixed_augmentation = mixed_augment,image_set=image_set)
+        else: # Default settings
+            dataset = CocoDetection(img_folder, ann_file, transforms=transforms,#make_coco_transforms_ViT(image_set, args.img_size, None),
+                                    return_masks=args.masks, small_augment=args.small_augment,
+                                    mixed_augmentation = mixed_augment,
+                                    image_set=image_set)
     else:
-        dataset = CocoDetection(img_folder, ann_file, transforms=make_coco_transforms(image_set), return_masks=args.masks, aug=args.augment, image_set=image_set)
+        dataset = CocoDetection(img_folder, ann_file, transforms=make_coco_transforms(image_set), return_masks=args.masks, aug=args.augment,image_set=image_set)
 
     return dataset
