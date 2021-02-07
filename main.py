@@ -27,7 +27,7 @@ rlimit = resource.getrlimit(resource.RLIMIT_NOFILE)
 resource.setrlimit(resource.RLIMIT_NOFILE, (4096, rlimit[1]))
 #import wandb
 from argparse import Namespace
-
+from util.plot_utils import visualize
 
 def get_args_parser():
     parser = argparse.ArgumentParser('Set transformer detector', add_help=False)
@@ -394,6 +394,11 @@ def dataloader_tester(args):
 
     i = 0
     for samples, targets in data_loader_train:
+        image = samples.tensors[0].permute(2,1,0).numpy()
+        bboxes = targets[1]['boxes'].tolist()
+        category_ids = targets[1]['labels'].tolist()
+        category_id_to_name = None
+        visualize(image, bboxes, category_ids, category_id_to_name)
         i = i + 1
 
     i = 0
@@ -496,10 +501,10 @@ if __name__ == '__main__':
     if not args.output_dir:  # create output dir as per experiment name in exp folder
         args.output_dir = './exp/' + args.experiment_name
     Path(args.output_dir).mkdir(parents=True, exist_ok=True)
-    main(args)
+    # main(args)
     # model = inference(args, resume = '/nfs/data3/koner/data/checkpoints/vit_detr/exp/skip_connection_wdNorm/checkpoint.pth', skip_connection=True)
     # model = inference(args, resume='/mnt/data/hannan/deit/deit_base_patch16_224-b5f2ef4d.pth', skip_connection=False)
     # model = inference(args=None, resume='/nfs/data3/koner/data/checkpoints/vit_detr/exp/skip_connection_592_432/checkpoint.pth',skip_connection=True)
     # print(model)
     # print("done")
-    # dataloader_tester(args)
+    dataloader_tester(args)

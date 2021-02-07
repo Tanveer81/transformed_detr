@@ -211,7 +211,7 @@ def spatial_augmentation(image_set, image_size):
             A.ShiftScaleRotate(), A.LongestMaxSize(),]
         random_color_aug = color_augmentation(image_set)
         random_spacial_aug = random.choices([A.NoOp(), random.choice(spacial_aug_list)], weights=[0.3, 0.7])[0]
-        transform = A.Compose([random_spacial_aug, random_color_aug, normalize],
+        transform = A.Compose([random_spacial_aug, random_color_aug],
                     bbox_params=A.BboxParams(format='pascal_voc', label_fields=['category_ids']))
         return transform
 
@@ -233,7 +233,6 @@ def make_coco_transforms_ViT(image_set, image_size, max=None):
     if image_set == 'train': #todo this 384 is final or we sud think more on size
         return T.Compose([
             T.RandomHorizontalFlip(),
-            A.Transpose(),
             T.RandomSelect(
                 # T.RandomResize(scales, max_size=1333),
                 T.FixedResize(image_size, max),
@@ -269,7 +268,7 @@ def build(image_set, args):
 
     # Use transformer for ViT
     mixed_augment = spatial_augmentation(image_set, args.img_size) if args.mixed_augment else None
-    transforms = make_coco_transforms_ViT(image_set, args.img_size, None) if args.mixed_augment is None else None
+    transforms = make_coco_transforms_ViT(image_set, args.img_size, None) if not args.mixed_augment else None
     if args.backbone in ("ViT", "Deit"):
         if args.random_image_size:
             dataset = CocoDetection(img_folder, ann_file, transforms=make_coco_transforms(image_set), return_masks=args.masks, small_augment=args.small_augment, mixed_augmentation = mixed_augment,image_set=image_set)
