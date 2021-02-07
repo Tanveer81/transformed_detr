@@ -23,8 +23,9 @@ SOA_ONE_OBJECT = False
 SOA_ALL_OBJECTS = False
 
 class CocoDetection(torchvision.datasets.CocoDetection):
-    def __init__(self, img_folder, ann_file, transforms, return_masks, small_augment, color_augmentation=None):
+    def __init__(self, img_folder, ann_file, transforms, return_masks, small_augment, color_augmentation=None,image_set='train'):
         super(CocoDetection, self).__init__(img_folder, ann_file)
+        self.image_set = image_set
         self.small_augment = small_augment
         self._transforms = transforms
         self.color_augmentation = color_augmentation
@@ -40,7 +41,7 @@ class CocoDetection(torchvision.datasets.CocoDetection):
         img, target = self.prepare(img, target)
 
         # Copy small objects multiple times randomly
-        if self.small_augment:
+        if self.small_augment and self.image_set=='train':
             sample = self._augmentation(img, target)
             if sample is not None:
                 img, target = sample['img'], sample['target']
@@ -232,10 +233,10 @@ def build(image_set, args):
     color_augment = color_augmentation(image_set) if args.color_augment else None
     if args.backbone in ("ViT", "Deit"):
         if args.random_image_size:
-            dataset = CocoDetection(img_folder, ann_file, transforms=make_coco_transforms(image_set), return_masks=args.masks, small_augment=args.small_augment, color_augmentation = color_augment)
+            dataset = CocoDetection(img_folder, ann_file, transforms=make_coco_transforms(image_set), return_masks=args.masks, small_augment=args.small_augment, color_augmentation = color_augment,image_set=image_set)
         else:
-            dataset = CocoDetection(img_folder, ann_file, transforms=make_coco_transforms_ViT(image_set, args.img_size, None), return_masks=args.masks, small_augment=args.small_augment, color_augmentation = color_augment)
+            dataset = CocoDetection(img_folder, ann_file, transforms=make_coco_transforms_ViT(image_set, args.img_size, None), return_masks=args.masks, small_augment=args.small_augment, color_augmentation = color_augment,image_set=image_set)
     else:
-        dataset = CocoDetection(img_folder, ann_file, transforms=make_coco_transforms(image_set), return_masks=args.masks, aug=args.augment)
+        dataset = CocoDetection(img_folder, ann_file, transforms=make_coco_transforms(image_set), return_masks=args.masks, aug=args.augment, image_set=image_set)
 
     return dataset
