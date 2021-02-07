@@ -4,6 +4,8 @@
 import numpy as np
 import torch
 from torch.utils import model_zoo
+import matplotlib.pyplot as plt
+import matplotlib.patches as patches
 
 from .configs import PRETRAINED_MODELS
 
@@ -188,4 +190,19 @@ def resize_positional_embedding_(posemb, posemb_new, has_class_token=True, gs_ol
     print(posemb.shape)
     return posemb
 
+def plot_coco_sample(image, bboxes, labels, relative_coords=True):
+    H, W = image.shape[0], image.shape[1]
+    fig, ax = plt.subplots(dpi=160)
+
+    # Displaying the image
+    ax.imshow(image)
+
+    # Bounding boxes
+    for bbox, label in zip(bboxes, labels):
+        l, t, r, b = bbox * [W, H, W, H] if relative_coords else bbox
+        rect = patches.Rectangle((l, t), width=(r - l), height=(b - t),
+                                 linewidth=1, edgecolor='#76b900', facecolor='none')
+        ax.add_patch(rect)
+        
+    plt.show()
 
