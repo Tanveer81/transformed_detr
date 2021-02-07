@@ -60,7 +60,7 @@ def get_args_parser():
     parser.add_argument('--only_weight', action='store_true', help='used for coco trainined detector')
     parser.add_argument('--pool', default='max', type=str, choices=('max', 'avg'))
     parser.add_argument('--small_augment', default=False, action='store_true')
-    parser.add_argument('--color_augment', default=False, action='store_true')
+    parser.add_argument('--mixed_augment', default=False, action='store_true')
     parser.add_argument('--opt', default='AdamW', type=str, choices=('AdamW', 'SGD'))
     parser.add_argument('--drop_path', type=float, default=0., metavar='PCT',
                         help='Drop path rate (default: 0.)')

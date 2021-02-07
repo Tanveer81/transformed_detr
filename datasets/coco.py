@@ -25,12 +25,13 @@ SOA_ONE_OBJECT = False
 SOA_ALL_OBJECTS = False
 
 class CocoDetection(torchvision.datasets.CocoDetection):
-    def __init__(self, img_folder, ann_file, transforms, return_masks, small_augment, color_augmentation=None, spatial_augmentation=None):
+    def __init__(self, img_folder, ann_file, transforms, return_masks, small_augment,
+                 mixed_augmentation=None, image_set='train'):
         super(CocoDetection, self).__init__(img_folder, ann_file)
+        self.image_set = image_set
         self.small_augment = small_augment
-        self.spatial_augmentation = spatial_augmentation
+        self.mixed_augmentation = mixed_augmentation
         self._transforms = transforms
-        self.color_augmentation = color_augmentation
         if small_augment:
             self._augmentation = SmallObjectAugmentation(SOA_THRESH, SOA_PROB, SOA_COPY_TIMES,
                                                          SOA_EPOCHS, SOA_ALL_OBJECTS, SOA_ONE_OBJECT)
@@ -46,31 +47,26 @@ class CocoDetection(torchvision.datasets.CocoDetection):
         img = np.array(img).transpose(1, 0, 2)
 
         # Copy small objects multiple times randomly
-        if self.small_augment:
+        if self.small_augment and self.image_set == 'train':
             sample = self._augmentation(img, target)
             if sample is not None:
                 img, target = sample['img'], sample['target']
-
         # Spacial transformations/ augmentations
-        if self.spatial_augmentation is not None:
+        if self.mixed_augmentation is not None:
             # Albumentation expects height first and then width in numpy array, so need to transpose.
             img = img.transpose(1, 0, 2)
-            transformed = self.spatial_augmentation(image=img, bboxes=target['boxes'], category_ids=target['labels'])
+            transformed = self.mixed_augmentation(image=img, bboxes=target['boxes'], category_ids=target['labels'])
             img = transformed['image']
             target['boxes'] = torch.tensor(transformed['bboxes'], dtype=torch.float32)
             # Albumentation returns height first tensor, we need to make it width first
             img = img.permute(0, 2, 1)
 
+        elif self._transforms is not None:
+            # This transformation expects images to be in PIL format. So need too transpose because numpy and PIL axis are different
+            img = img.transpose(1, 0, 2)
+            img = transforms.ToPILImage()(img)
+            img, target = self._transforms(img, target)
 
-        # if self._transforms is not None:
-        #     # This transformation expects images to be in PIL format. So need too transpose because numpy and PIL axis are different
-        #     img = img.transpose(1, 0, 2)
-        #     img = transforms.ToPILImage()(img)
-        #     img, target = self._transforms(img, target)
-        #
-        # # Color/ pixes wise augmentations
-        # if self.color_augmentation is not None:
-        #     img = self.color_augmentation(image=img)["image"]
         return img, target
 
 
@@ -272,15 +268,17 @@ def build(image_set, args):
     img_folder, ann_file = PATHS[image_set]
 
     # Use transformer for ViT
-    color_augment = color_augmentation(image_set) if args.color_augment else None
+    mixed_augment = spatial_augmentation(image_set, args.img_size) if args.mixed_augment else None
+    transforms = make_coco_transforms_ViT(image_set, args.img_size, None) if args.mixed_augment is None else None
     if args.backbone in ("ViT", "Deit"):
         if args.random_image_size:
-            dataset = CocoDetection(img_folder, ann_file, transforms=make_coco_transforms(image_set), return_masks=args.masks, small_augment=args.small_augment, color_augmentation = color_augment)
-        else:
-            dataset = CocoDetection(img_folder, ann_file, transforms=None,#make_coco_transforms_ViT(image_set, args.img_size, None),
+            dataset = CocoDetection(img_folder, ann_file, transforms=make_coco_transforms(image_set), return_masks=args.masks, small_augment=args.small_augment, mixed_augmentation = mixed_augment,image_set=image_set)
+        else: # Default settings
+            dataset = CocoDetection(img_folder, ann_file, transforms=transforms,#make_coco_transforms_ViT(image_set, args.img_size, None),
                                     return_masks=args.masks, small_augment=args.small_augment,
-                                    color_augmentation = color_augment, spatial_augmentation=spatial_augmentation(image_set, args.img_size))
+                                    mixed_augmentation = mixed_augment,
+                                    image_set=image_set)
     else:
-        dataset = CocoDetection(img_folder, ann_file, transforms=make_coco_transforms(image_set), return_masks=args.masks, aug=args.augment)
+        dataset = CocoDetection(img_folder, ann_file, transforms=make_coco_transforms(image_set), return_masks=args.masks, aug=args.augment,image_set=image_set)
 
     return dataset
