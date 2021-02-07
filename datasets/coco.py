@@ -57,7 +57,7 @@ class CocoDetection(torchvision.datasets.CocoDetection):
             img = img.transpose(1, 0, 2)
             transformed = self.spatial_augmentation(image=img, bboxes=target['boxes'], category_ids=target['labels'])
             img = transformed['image']
-            target['boxes'] = torch.tensor(transformed['bboxes'])
+            target['boxes'] = torch.tensor(transformed['bboxes'], dtype=torch.float32)
             # Albumentation returns height first tensor, we need to make it width first
             img = img.permute(0, 2, 1)
 
