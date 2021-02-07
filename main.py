@@ -495,7 +495,7 @@ if __name__ == '__main__':
     args = parser.parse_args()
     # if args.deit and args.pretrained_vit:
     #     assert 'deit' in args.pretrain_dir, 'for pretraining with deit please load deit checkpoint'
-    args.img_size = (args.img_width, args.img_height)
+    args.img_size = (args.img_height, args.img_width)
     args.data_size = (args.data_height, args.data_width)
     print(args)
     if not args.output_dir:  # create output dir as per experiment name in exp folder

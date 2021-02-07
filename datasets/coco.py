@@ -44,22 +44,28 @@ class CocoDetection(torchvision.datasets.CocoDetection):
         img, target = self.prepare(img, target)
 
         # Convert PIL image to numpy array, the axis are different so need to transpose
-        img = np.array(img).transpose(1, 0, 2)
+
 
         # Copy small objects multiple times randomly
         if self.small_augment and self.image_set == 'train':
+            img = np.array(img).transpose(1, 0, 2)
             sample = self._augmentation(img, target)
             if sample is not None:
                 img, target = sample['img'], sample['target']
         # Spacial transformations/ augmentations
         if self.mixed_augmentation is not None:
+            for bboxes in target['boxes']:
+                h, w = img.size
+                bboxes[0], bboxes[2] = bboxes[0] / w, bboxes[2] / w
+                bboxes[1], bboxes[3] = bboxes[1] / h, bboxes[3] / h
             # Albumentation expects height first and then width in numpy array, so need to transpose.
-            img = img.transpose(1, 0, 2)
+            # img = img.transpose(1, 0, 2)
+            img = np.array(img)
             transformed = self.mixed_augmentation(image=img, bboxes=target['boxes'], category_ids=target['labels'])
             img = transformed['image']
             target['boxes'] = torch.tensor(transformed['bboxes'], dtype=torch.float32)
             # Albumentation returns height first tensor, we need to make it width first
-            img = img.permute(0, 2, 1)
+            # img = img.permute(0, 2, 1)
 
         elif self._transforms is not None:
             # This transformation expects images to be in PIL format. So need too transpose because numpy and PIL axis are different
@@ -201,7 +207,7 @@ def spatial_augmentation(image_set, image_size):
     def toTensor(img, **params):
         return F.to_tensor(img)
 
-    normalize = A.Compose([A.Resize(image_size[1], image_size[0]), #height first for this lobrary
+    normalize = A.Compose([A.Resize(image_size[0], image_size[1]), #height first for this lobrary
                           A.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225]),
                           A.Lambda(p=1, image=toTensor)])
 
@@ -211,13 +217,13 @@ def spatial_augmentation(image_set, image_size):
             A.ShiftScaleRotate(), A.LongestMaxSize(),]
         random_color_aug = color_augmentation(image_set)
         random_spacial_aug = random.choices([A.NoOp(), random.choice(spacial_aug_list)], weights=[0.3, 0.7])[0]
-        transform = A.Compose([random_spacial_aug, random_color_aug],
-                    bbox_params=A.BboxParams(format='pascal_voc', label_fields=['category_ids']))
+        transform = A.Compose([random_spacial_aug, random_color_aug, normalize],
+                    bbox_params=A.BboxParams(format='albumentations', label_fields=['category_ids']))
         return transform
 
     if image_set == 'val':
         return A.Compose(normalize,
-                bbox_params=A.BboxParams(format='pascal_voc', label_fields=['category_ids']),)
+                bbox_params=A.BboxParams(format='albumentations', label_fields=['category_ids']),)
 
     raise ValueError(f'unknown {image_set}')
 
