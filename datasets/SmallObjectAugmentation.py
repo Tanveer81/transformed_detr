@@ -96,7 +96,6 @@ class SmallObjectAugmentation(object):
 
     def add_patch_in_img(self, annot, copy_annot, image):
         copy_annot = copy_annot.astype(np.int)
-        print(copy_annot, annot)
         image[annot[1]:annot[3], annot[0]:annot[2], :] = image[copy_annot[1]:copy_annot[3], copy_annot[0]:copy_annot[2], :]
         return image
 
