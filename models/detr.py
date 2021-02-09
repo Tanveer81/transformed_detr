@@ -421,7 +421,7 @@ def build(args):
                                     drop_path_rate=args.drop_path,
                                     drop_block_rate=None,
                                     skip_connection = args.skip_connection,
-                                    img_size= args.img_width, #todo for variable im wdith and heoight
+                                    img_size= (args.img_height, args.img_width), #todo for variable im wdith and heoight
                                     reduce_feature=args.reduce_feature,
                                 )
         # Make detr d_model compatible with deit

@@ -76,17 +76,17 @@ class SmallObjectAugmentation(object):
 
     def create_copy_annot(self, h, w, annot, annots):
         annot = annot.astype(np.int)
-        annot_h, annot_w = annot[3] - annot[1], annot[2] - annot[0]
+        annot_w, annot_h = annot[2] - annot[0], annot[3] - annot[1]
         for epoch in range(self.epochs):
             if int(annot_w / 2) >= int(w - annot_w / 2) or int(annot_h / 2) >= int(h - annot_h / 2):
                 continue
-            random_x, random_y = np.random.randint(int(annot_w / 2), int(w - annot_w / 2)), \
-                                 np.random.randint(int(annot_h / 2), int(h - annot_h / 2))
-            xmin, ymin = random_x - annot_w / 2, random_y - annot_h / 2
-            xmax, ymax = xmin + annot_w, ymin + annot_h
-            if xmin < 0 or xmax > w or ymin < 0 or ymax > h:
+            random_x, random_y = np.random.randint(int(annot_h / 2), int(h - annot_h / 2)), \
+                                 np.random.randint(int(annot_w / 2), int(w - annot_w / 2))
+            xmin, ymin = random_x - annot_h / 2, random_y - annot_w / 2
+            xmax, ymax = xmin + annot_h, ymin + annot_w
+            if xmin < 0 or xmax > h or ymin < 0 or ymax > w:
                 continue
-            new_annot = np.array([xmin, ymin, xmax, ymax, annot[4]]).astype(np.int)
+            new_annot = np.array([ymin, xmin, ymax, xmax, annot[4]]).astype(np.int)
 
             if self.donot_overlap(new_annot, annots) is False:
                 continue
@@ -96,7 +96,7 @@ class SmallObjectAugmentation(object):
 
     def add_patch_in_img(self, annot, copy_annot, image):
         copy_annot = copy_annot.astype(np.int)
-        image[annot[0]:annot[2], annot[1]:annot[3], :] = image[copy_annot[0]:copy_annot[2], copy_annot[1]:copy_annot[3], :]
+        image[annot[1]:annot[3], annot[0]:annot[2], :] = image[copy_annot[1]:copy_annot[3], copy_annot[0]:copy_annot[2], :]
         return image
 
     def coco2voc(self, image_height, image_width, x1, y1, w, h):
@@ -127,7 +127,7 @@ class SmallObjectAugmentation(object):
         for t, label in zip(target['boxes'], target['labels']):
             annots.append([t[0], t[1], t[2], t[3], label])
 
-        w, h = img.shape[0], img.shape[1]
+        h, w = img.shape[0], img.shape[1]
         # PIL img has w,h format. When converted to np array, it becomes h,w. So need to permute.
         annots = np.array(annots)
         # img = np.array(img).transpose(1, 0, 2)

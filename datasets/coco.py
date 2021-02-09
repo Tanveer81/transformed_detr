@@ -43,36 +43,29 @@ class CocoDetection(torchvision.datasets.CocoDetection):
         target = {'image_id': image_id, 'annotations': target}
         img, target = self.prepare(img, target)
 
-        # Convert PIL image to numpy array, the axis are different so need to transpose
-
-
         # Copy small objects multiple times randomly
+        img = np.array(img)
         if self.small_augment and self.image_set == 'train':
-            img = np.array(img).transpose(1, 0, 2)
             sample = self._augmentation(img, target)
             if sample is not None:
                 img, target = sample['img'], sample['target']
         # Spacial transformations/ augmentations
         if self.mixed_augmentation is not None:
-            for bboxes in target['boxes']:
-                h, w = img.size
+            h, w = img.shape[0], img.shape[1]
+            for idx, bboxes in enumerate(target['boxes']):
                 bboxes[0], bboxes[2] = bboxes[0] / w, bboxes[2] / w
                 bboxes[1], bboxes[3] = bboxes[1] / h, bboxes[3] / h
-            # Albumentation expects height first and then width in numpy array, so need to transpose.
-            # img = img.transpose(1, 0, 2)
-            img = np.array(img)
+                target['boxes'][idx] = bboxes
+
             transformed = self.mixed_augmentation(image=img, bboxes=target['boxes'], category_ids=target['labels'])
             img = transformed['image']
             target['boxes'] = torch.tensor(transformed['bboxes'], dtype=torch.float32)
-            # Albumentation returns height first tensor, we need to make it width first
-            # img = img.permute(0, 2, 1)
 
-        elif self._transforms is not None:
+        elif self._transforms is not None: #TODO: Tanveer have a look on what to do with this part
             # This transformation expects images to be in PIL format. So need too transpose because numpy and PIL axis are different
             img = img.transpose(1, 0, 2)
             img = transforms.ToPILImage()(img)
             img, target = self._transforms(img, target)
-
         return img, target
 
 
