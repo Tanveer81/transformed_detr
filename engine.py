@@ -112,6 +112,15 @@ def evaluate(model, criterion, postprocessors, data_loader, base_ds, device, out
 
         orig_target_sizes = torch.stack([t["orig_size"] for t in targets], dim=0)
         results = postprocessors['bbox'](outputs, orig_target_sizes)
+
+        for idx, t in enumerate(targets):
+            h = orig_target_sizes[idx][0]
+            w = orig_target_sizes[idx][1]
+            for idx2, bboxes in enumerate(t['boxes']):
+                bboxes[0], bboxes[2] = bboxes[0] * w, bboxes[2] * w
+                bboxes[1], bboxes[3] = bboxes[1] * h, bboxes[3] * h
+                targets[idx]['boxes'][idx2] = bboxes
+
         if 'segm' in postprocessors.keys():
             target_sizes = torch.stack([t["size"] for t in targets], dim=0)
             results = postprocessors['segm'](results, outputs, orig_target_sizes, target_sizes)
