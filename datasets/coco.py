@@ -16,10 +16,11 @@ import albumentations as A
 import datasets.transforms as T
 import torchvision.transforms.functional as F
 from datasets.SmallObjectAugmentation import SmallObjectAugmentation
+from util import box_ops
 
-SOA_THRESH = 80 * 80
+SOA_THRESH = 50 * 50
 SOA_PROB = 0.5
-SOA_COPY_TIMES = 3
+SOA_COPY_TIMES = 2
 SOA_EPOCHS = 30
 SOA_ONE_OBJECT = False
 SOA_ALL_OBJECTS = False
@@ -49,6 +50,7 @@ class CocoDetection(torchvision.datasets.CocoDetection):
             sample = self._augmentation(img, target)
             if sample is not None:
                 img, target = sample['img'], sample['target']
+
         # Spacial transformations/ augmentations
         if self.mixed_augmentation is not None:
             h, w = img.shape[0], img.shape[1]
@@ -60,6 +62,9 @@ class CocoDetection(torchvision.datasets.CocoDetection):
             transformed = self.mixed_augmentation(image=img, bboxes=target['boxes'], category_ids=target['labels'])
             img = transformed['image']
             target['boxes'] = torch.tensor(transformed['bboxes'], dtype=torch.float32)
+
+            for idx, bboxes in enumerate(target['boxes']):
+                target['boxes'][idx] = box_ops.box_xyxy_to_cxcywh(bboxes)
 
         elif self._transforms is not None: #TODO: Tanveer have a look on what to do with this part
             # This transformation expects images to be in PIL format. So need too transpose because numpy and PIL axis are different
