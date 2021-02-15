@@ -217,7 +217,14 @@ class SetCriterion(nn.Module):
         src_boxes = outputs['pred_boxes'][idx]
         target_boxes = torch.cat([t['boxes'][i] for t, (_, i) in zip(targets, indices)], dim=0)
 
-        loss_bbox = F.l1_loss(src_boxes, target_boxes, reduction='none')
+        # loss_bbox = F.l1_loss(src_boxes, target_boxes, reduction='none')
+        # make a new copy of the src and target bboxes
+        sqrt_src_boxes = src_boxes.detach().clone()
+        sqrt_target_boxes = target_boxes.detach().clone()
+        # sqrt only the height and width
+        sqrt_src_boxes[:, 2:4] = torch.sqrt(sqrt_src_boxes[:, 2:4])
+        sqrt_target_boxes[:, 2:4] = torch.sqrt(sqrt_target_boxes[:, 2:4])
+        loss_bbox = F.smooth_l1_loss(sqrt_src_boxes, sqrt_target_boxes, reduction='none')
 
         losses = {}
         losses['loss_bbox'] = loss_bbox.sum() / num_boxes
