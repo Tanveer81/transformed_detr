@@ -113,6 +113,8 @@ def get_args_parser():
     # Loss
     parser.add_argument('--no_aux_loss', dest='aux_loss', action='store_false',
                         help="Disables auxiliary decoding losses (loss at each layer)")
+    parser.add_argument('--loss_type', default='l1', type=str, choices=('l1', 'smooth_l1', 'balanced_l1'))
+
     # * Matcher
     parser.add_argument('--set_cost_class', default=1, type=float,
                         help="Class coefficient in the matching cost")
