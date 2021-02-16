@@ -22,6 +22,8 @@ class OverrideVisionTransformer(VisionTransformer):
         self.skip_connection = kwargs.pop('skip_connection')
         embedd_dim = kwargs.pop('embed_dim')
         super().__init__(*args, **kwargs)
+        # remove classifier head
+        del self.head
 
     def forward(self, x):
         B = x.shape[0]
@@ -56,6 +58,8 @@ class DistilledVisionTransformer(VisionTransformer):
         kwargs['qk_scale'] = None
         kwargs['attn_drop_rate'] = 0.
         super().__init__(*args, **kwargs)
+        # remove classifier head
+        del self.head
         self.skip_connection = kwargs.pop('skip_connection')
 
         # dpr = [x.item() for x in torch.linspace(0, kwargs['drop_path_rate'], kwargs['depth'])]  # stochastic depth decay rule
