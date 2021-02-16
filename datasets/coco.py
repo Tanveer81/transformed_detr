@@ -216,13 +216,13 @@ def spatial_augmentation(image_set, image_size):
         return random_resize(img)
 
     def RandomSizeCrop(img, **params):
-        A.RandomSizedCrop((384, 600, img.shape[0], img.shape[1]))
+        return A.RandomSizedCrop((384, 600, img.shape[0], img.shape[1]))
 
     normalize = A.Compose([A.Resize(image_size[0], image_size[1]),  # height first for this lobrary
                            A.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225]),
                            A.Lambda(p=1, image=toTensor)])
 
-    if image_set == 'train':  # todo this 384 is final or we sud think more on size
+    if image_set == 'train':
         detr_aug = A.Compose([
             A.HorizontalFlip(),
             A.OneOrOther(
