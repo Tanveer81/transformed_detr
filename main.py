@@ -27,7 +27,7 @@ from tensorboardX import SummaryWriter
 # resource.setrlimit(resource.RLIMIT_NOFILE, (4096, rlimit[1]))
 #import wandb
 from argparse import Namespace
-
+from util.plot_utils import visualize
 
 def get_args_parser():
     parser = argparse.ArgumentParser('Set transformer detector', add_help=False)
@@ -60,7 +60,7 @@ def get_args_parser():
     parser.add_argument('--only_weight', action='store_true', help='used for coco trainined detector')
     parser.add_argument('--pool', default='max', type=str, choices=('max', 'avg'))
     parser.add_argument('--small_augment', default=False, action='store_true')
-    parser.add_argument('--color_augment', default=False, action='store_true')
+    parser.add_argument('--mixed_augment', default=False, action='store_true')
     parser.add_argument('--opt', default='AdamW', type=str, choices=('AdamW', 'SGD'))
     parser.add_argument('--drop_path', type=float, default=0., metavar='PCT',
                         help='Drop path rate (default: 0.)')
@@ -113,6 +113,8 @@ def get_args_parser():
     # Loss
     parser.add_argument('--no_aux_loss', dest='aux_loss', action='store_false',
                         help="Disables auxiliary decoding losses (loss at each layer)")
+    parser.add_argument('--loss_type', default='l1', type=str, choices=('l1', 'smooth_l1', 'balanced_l1'))
+
     # * Matcher
     parser.add_argument('--set_cost_class', default=1, type=float,
                         help="Class coefficient in the matching cost")
@@ -394,6 +396,11 @@ def dataloader_tester(args):
 
     i = 0
     for samples, targets in data_loader_train:
+        image = samples.tensors[0].permute(2,1,0).numpy()
+        bboxes = targets[1]['boxes'].tolist()
+        category_ids = targets[1]['labels'].tolist()
+        category_id_to_name = None
+        visualize(image, bboxes, category_ids, category_id_to_name)
         i = i + 1
 
     i = 0
@@ -490,7 +497,7 @@ if __name__ == '__main__':
     args = parser.parse_args()
     # if args.deit and args.pretrained_vit:
     #     assert 'deit' in args.pretrain_dir, 'for pretraining with deit please load deit checkpoint'
-    args.img_size = (args.img_width, args.img_height)
+    args.img_size = (args.img_height, args.img_width)
     args.data_size = (args.data_height, args.data_width)
     print(args)
     if not args.output_dir:  # create output dir as per experiment name in exp folder

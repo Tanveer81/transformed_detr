@@ -11,6 +11,7 @@ from typing import Iterable
 import torch
 
 import util.misc as utils
+from util import box_ops
 from datasets.coco_eval import CocoEvaluator
 from datasets.panoptic_eval import PanopticEvaluator
 
@@ -112,6 +113,16 @@ def evaluate(model, criterion, postprocessors, data_loader, base_ds, device, out
 
         orig_target_sizes = torch.stack([t["orig_size"] for t in targets], dim=0)
         results = postprocessors['bbox'](outputs, orig_target_sizes)
+
+        for idx, t in enumerate(targets):
+            h = orig_target_sizes[idx][0]
+            w = orig_target_sizes[idx][1]
+            for idx2, bboxes in enumerate(t['boxes']):
+                bboxes = box_ops.box_cxcywh_to_xyxy(bboxes)
+                bboxes[0], bboxes[2] = bboxes[0] * w, bboxes[2] * w
+                bboxes[1], bboxes[3] = bboxes[1] * h, bboxes[3] * h
+                targets[idx]['boxes'][idx2] = bboxes
+
         if 'segm' in postprocessors.keys():
             target_sizes = torch.stack([t["size"] for t in targets], dim=0)
             results = postprocessors['segm'](results, outputs, orig_target_sizes, target_sizes)
