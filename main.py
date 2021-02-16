@@ -21,10 +21,10 @@ from models.pytorch_pretrained_vit.configs import PRETRAINED_MODELS
 from models.pytorch_pretrained_vit.utils import resize_positional_embedding_, maybe_print
 from tensorboardX import SummaryWriter
 
-torch.multiprocessing.set_sharing_strategy('file_system')
-import resource
-rlimit = resource.getrlimit(resource.RLIMIT_NOFILE)
-resource.setrlimit(resource.RLIMIT_NOFILE, (4096, rlimit[1]))
+# torch.multiprocessing.set_sharing_strategy('file_system')
+# import resource
+# rlimit = resource.getrlimit(resource.RLIMIT_NOFILE)
+# resource.setrlimit(resource.RLIMIT_NOFILE, (4096, rlimit[1]))
 #import wandb
 from argparse import Namespace
 from util.plot_utils import visualize
@@ -183,8 +183,8 @@ def main(args):
 
     model_without_ddp = model
     if args.distributed:
-        model = torch.nn.parallel.DistributedDataParallel(model, device_ids=[args.gpu],
-                                                          find_unused_parameters=True)
+
+        model = torch.nn.parallel.DistributedDataParallel(model, device_ids=[args.gpu],) #find_unused_parameters=True
         model_without_ddp = model.module
     n_parameters = sum(p.numel() for p in model.parameters() if p.requires_grad)
     print('number of params:', n_parameters)
