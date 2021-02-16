@@ -211,7 +211,7 @@ def spatial_augmentation(image_set, image_size):
 
     def RandomResize(img, **params):
         scales = [480, 512, 544, 576, 608, 640, 672, 704, 736, 768, 800]
-        size = random.choice(scales, scales)
+        size = random.choice(scales)
         random_resize = A.Resize(size, size)
         return random_resize(img)
 
