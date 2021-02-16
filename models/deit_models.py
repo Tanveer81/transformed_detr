@@ -20,10 +20,8 @@ __all__ = [
 class OverrideVisionTransformer(VisionTransformer):
     def __init__(self, *args, **kwargs):
         self.skip_connection = kwargs.pop('skip_connection')
-        self.reduce_feature = kwargs.pop('reduce_feature')
         embedd_dim = kwargs.pop('embed_dim')
         super().__init__(*args, **kwargs)
-        self.red_feat = nn.Linear(embedd_dim*(len(self.skip_connection)+1), embedd_dim)
 
     def forward(self, x):
         B = x.shape[0]
@@ -43,16 +41,11 @@ class OverrideVisionTransformer(VisionTransformer):
                     residual_connections.append(x)
 
             for residual in residual_connections:
-                if self.reduce_feature:
-                    x = torch.cat((x, residual), 2)
-                else:
-                    x = x + residual
+                x = x + residual
         else:
             for blk in self.blocks:
                 x = blk(x)
 
-        if self.reduce_feature:
-            x = self.red_feat(x)
 
         x = self.norm(x)
         return x, self.pos_embed
