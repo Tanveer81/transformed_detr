@@ -25,6 +25,7 @@ SOA_EPOCHS = 30
 SOA_ONE_OBJECT = False
 SOA_ALL_OBJECTS = False
 
+
 class CocoDetection(torchvision.datasets.CocoDetection):
     def __init__(self, img_folder, ann_file, transforms, return_masks, small_augment,
                  mixed_augmentation=None, image_set='train'):
@@ -35,7 +36,8 @@ class CocoDetection(torchvision.datasets.CocoDetection):
         self._transforms = transforms
         if small_augment:
             self._augmentation = SmallObjectAugmentation(SOA_THRESH, SOA_PROB, SOA_COPY_TIMES,
-                                                         SOA_EPOCHS, SOA_ALL_OBJECTS, SOA_ONE_OBJECT)
+                                                         SOA_EPOCHS, SOA_ALL_OBJECTS,
+                                                         SOA_ONE_OBJECT)
         self.prepare = ConvertCocoPolysToMask(return_masks)
 
     def __getitem__(self, idx):
@@ -59,14 +61,15 @@ class CocoDetection(torchvision.datasets.CocoDetection):
                 bboxes[1], bboxes[3] = bboxes[1] / h, bboxes[3] / h
                 target['boxes'][idx] = bboxes
 
-            transformed = self.mixed_augmentation(image=img, bboxes=target['boxes'], category_ids=target['labels'])
+            transformed = self.mixed_augmentation(image=img, bboxes=target['boxes'],
+                                                  category_ids=target['labels'])
             img = transformed['image']
             target['boxes'] = torch.tensor(transformed['bboxes'], dtype=torch.float32)
 
             for idx, bboxes in enumerate(target['boxes']):
                 target['boxes'][idx] = box_ops.box_xyxy_to_cxcywh(bboxes)
 
-        elif self._transforms is not None: #TODO: Tanveer have a look on what to do with this part
+        elif self._transforms is not None:  # TODO: Tanveer have a look on what to do with this part
             # This transformation expects images to be in PIL format. So need too transpose because numpy and PIL axis are different
             img = img.transpose(1, 0, 2)
             img = transforms.ToPILImage()(img)
@@ -157,7 +160,6 @@ class ConvertCocoPolysToMask(object):
 
 
 def make_coco_transforms(image_set):
-
     normalize = T.Compose([
         T.ToTensor(),
         T.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
@@ -187,54 +189,76 @@ def make_coco_transforms(image_set):
 
     raise ValueError(f'unknown {image_set}')
 
+
 def color_augmentation(image_set):
     if image_set == 'train':
         color_aug_list = [
             A.RandomBrightnessContrast(), A.RandomBrightnessContrast(contrast_limit=0.),
             A.RandomBrightnessContrast(brightness_limit=0.), A.RGBShift(), A.HueSaturationValue(),
-            A.ChannelShuffle(), A.CLAHE(), A.RandomGamma(), A.Blur(), A.ToGray(), A.ToSepia(),]
+            A.ChannelShuffle(), A.CLAHE(), A.RandomGamma(), A.Blur(), A.ToGray(), A.ToSepia(), ]
         # Return random augmentation with 0.7 probability
-        return random.choices([A.NoOp(), random.choice(color_aug_list)],  weights=[0.3, 0.7])[0]
+        return random.choices([A.NoOp(), random.choice(color_aug_list)], weights=[0.3, 0.7])[0]
 
     elif image_set == 'val':
         return A.NoOp()
 
     raise ValueError(f'unknown {image_set}')
 
+
 def spatial_augmentation(image_set, image_size):
     def toTensor(img, **params):
         return F.to_tensor(img)
 
-    normalize = A.Compose([A.Resize(image_size[0], image_size[1]), #height first for this lobrary
-                          A.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225]),
-                          A.Lambda(p=1, image=toTensor)])
+    def RandomResize(img, **params):
+        scales = [480, 512, 544, 576, 608, 640, 672, 704, 736, 768, 800]
+        size = random.choice(scales, scales)
+        random_resize = A.Resize(size, size)
+        return random_resize(img)
 
-    if image_set == 'train': #todo this 384 is final or we sud think more on size
-        spacial_aug_list = [A.HorizontalFlip(), A.Flip(), #vertical
-            A.Transpose(), A.RandomRotate90(), A.RandomSizedBBoxSafeCrop(384, 600),
-            A.ShiftScaleRotate(), A.LongestMaxSize(),]
+    def RandomSizeCrop(img, **params):
+        A.RandomSizedCrop((384, 600, img.shape[0], img.shape[1]))
+
+    normalize = A.Compose([A.Resize(image_size[0], image_size[1]),  # height first for this lobrary
+                           A.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225]),
+                           A.Lambda(p=1, image=toTensor)])
+
+    if image_set == 'train':  # todo this 384 is final or we sud think more on size
+        detr_aug = A.Compose([
+            A.HorizontalFlip(),
+            A.OneOrOther(
+                A.NoOp(),
+                A.Compose([
+                    A.Lambda(p=1, image=RandomResize),
+                    A.Lambda(p=1, image=RandomSizeCrop)
+                ])
+            )
+        ])
+        spacial_aug_list = [A.HorizontalFlip(), A.Flip(),  # vertical
+                            A.Transpose(), A.RandomRotate90(), A.RandomSizedBBoxSafeCrop(384, 600),
+                            A.ShiftScaleRotate(), A.LongestMaxSize(), ]
         random_color_aug = color_augmentation(image_set)
-        random_spacial_aug = random.choices([A.NoOp(), random.choice(spacial_aug_list)], weights=[0.3, 0.7])[0]
+        random_spacial_aug = random.choices([A.NoOp(), random.choice(spacial_aug_list), detr_aug], weights=[0.3, 0.35, 0.35])[0]
         transform = A.Compose([random_spacial_aug, random_color_aug, normalize],
-                    bbox_params=A.BboxParams(format='albumentations', label_fields=['category_ids']))
+                              bbox_params=A.BboxParams(format='albumentations',
+                                                       label_fields=['category_ids']))
         return transform
 
     if image_set == 'val':
         return A.Compose(normalize,
-                bbox_params=A.BboxParams(format='albumentations', label_fields=['category_ids']),)
+                         bbox_params=A.BboxParams(format='albumentations',
+                                                  label_fields=['category_ids']), )
 
     raise ValueError(f'unknown {image_set}')
 
-def make_coco_transforms_ViT(image_set, image_size, max=None):
 
+def make_coco_transforms_ViT(image_set, image_size, max=None):
     normalize = T.Compose([
         T.ToTensor(),
         T.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
     ])
 
     scales = [480, 512, 544, 576, 608, 640, 672, 704, 736, 768, 800]
-
-    if image_set == 'train': #todo this 384 is final or we sud think more on size
+    if image_set == 'train':  # todo this 384 is final or we sud think more on size
         return T.Compose([
             T.RandomHorizontalFlip(),
             T.RandomSelect(
@@ -272,16 +296,22 @@ def build(image_set, args):
 
     # Use transformer for ViT
     mixed_augment = spatial_augmentation(image_set, args.img_size) if args.mixed_augment else None
-    transforms = make_coco_transforms_ViT(image_set, args.img_size, None) if not args.mixed_augment else None
+    transforms = make_coco_transforms_ViT(image_set, args.img_size,
+                                          None) if not args.mixed_augment else None
     if args.backbone in ("ViT", "Deit"):
         if args.random_image_size:
-            dataset = CocoDetection(img_folder, ann_file, transforms=make_coco_transforms(image_set), return_masks=args.masks, small_augment=args.small_augment, mixed_augmentation = mixed_augment,image_set=image_set)
-        else: # Default settings
-            dataset = CocoDetection(img_folder, ann_file, transforms=transforms,#make_coco_transforms_ViT(image_set, args.img_size, None),
+            dataset = CocoDetection(img_folder, ann_file,
+                                    transforms=make_coco_transforms(image_set),
                                     return_masks=args.masks, small_augment=args.small_augment,
-                                    mixed_augmentation = mixed_augment,
+                                    mixed_augmentation=mixed_augment, image_set=image_set)
+        else:  # Default settings
+            dataset = CocoDetection(img_folder, ann_file, transforms=transforms,
+                                    # make_coco_transforms_ViT(image_set, args.img_size, None),
+                                    return_masks=args.masks, small_augment=args.small_augment,
+                                    mixed_augmentation=mixed_augment,
                                     image_set=image_set)
     else:
-        dataset = CocoDetection(img_folder, ann_file, transforms=make_coco_transforms(image_set), return_masks=args.masks, aug=args.augment,image_set=image_set)
+        dataset = CocoDetection(img_folder, ann_file, transforms=make_coco_transforms(image_set),
+                                return_masks=args.masks, aug=args.augment, image_set=image_set)
 
     return dataset
