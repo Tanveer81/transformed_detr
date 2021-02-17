@@ -153,7 +153,7 @@ class SetCriterion(nn.Module):
         2) we supervise each pair of matched ground-truth / prediction (supervise class and box)
     """
 
-    def __init__(self, num_classes, matcher, weight_dict, eos_coef, losses):
+    def __init__(self, num_classes, matcher, weight_dict, eos_coef, losses, loss_type):
         """ Create the criterion.
         Parameters:
             num_classes: number of object categories, omitting the special no-object category
@@ -163,6 +163,7 @@ class SetCriterion(nn.Module):
             losses: list of all the losses to be applied. See get_loss for list of available losses.
         """
         super().__init__()
+        self.loss_type = loss_type
         self.num_classes = num_classes
         self.matcher = matcher
         self.weight_dict = weight_dict
@@ -212,12 +213,69 @@ class SetCriterion(nn.Module):
            targets dicts must contain the key "boxes" containing a tensor of dim [nb_target_boxes, 4]
            The target boxes are expected in format (center_x, center_y, w, h), normalized by the image size.
         """
+
+        def balanced_l1_loss(pred,
+                             target,
+                             beta=1.0,
+                             alpha=0.5,
+                             gamma=1.5,
+                             reduction='mean'):
+            """Calculate balanced L1 loss.
+
+            Please see the `Libra R-CNN <https://arxiv.org/pdf/1904.02701.pdf>`_
+
+            Args:
+                pred (torch.Tensor): The prediction with shape (N, 4).
+                target (torch.Tensor): The learning target of the prediction with
+                    shape (N, 4).
+                beta (float): The loss is a piecewise function of prediction and target
+                    and ``beta`` serves as a threshold for the difference between the
+                    prediction and target. Defaults to 1.0.
+                alpha (float): The denominator ``alpha`` in the balanced L1 loss.
+                    Defaults to 0.5.
+                gamma (float): The ``gamma`` in the balanced L1 loss.
+                    Defaults to 1.5.
+                reduction (str, optional): The method that reduces the loss to a
+                    scalar. Options are "none", "mean" and "sum".
+
+            Returns:
+                torch.Tensor: The calculated loss
+            """
+            assert beta > 0
+            assert pred.size() == target.size() and target.numel() > 0
+
+            diff = torch.abs(pred - target)
+            b = np.e ** (gamma / alpha) - 1
+            loss = torch.where(
+                diff < beta, alpha / b *
+                (b * diff + 1) * torch.log(b * diff / beta + 1) - alpha * diff,
+                gamma * diff + gamma / b - alpha * beta)
+
+            return loss
+
         assert 'pred_boxes' in outputs
         idx = self._get_src_permutation_idx(indices)
         src_boxes = outputs['pred_boxes'][idx]
         target_boxes = torch.cat([t['boxes'][i] for t, (_, i) in zip(targets, indices)], dim=0)
 
-        loss_bbox = F.l1_loss(src_boxes, target_boxes, reduction='none')
+        if self.loss_type == 'l1':
+            loss_bbox = F.l1_loss(src_boxes, target_boxes, reduction='none')
+        elif self.loss_type == 'smooth_l1':
+            # make a new copy of the src and target bboxes
+            sqrt_src_boxes = src_boxes.detach().clone()
+            sqrt_target_boxes = target_boxes.detach().clone()
+            # sqrt only the height and width to emphasize small objects more
+            sqrt_src_boxes[:, 2:4] = torch.sqrt(sqrt_src_boxes[:, 2:4])
+            sqrt_target_boxes[:, 2:4] = torch.sqrt(sqrt_target_boxes[:, 2:4])
+            loss_bbox = F.smooth_l1_loss(sqrt_src_boxes, sqrt_target_boxes, reduction='none')
+        elif self.loss_type == 'balanced_l1':
+            # make a new copy of the src and target bboxes
+            sqrt_src_boxes = src_boxes.detach().clone()
+            sqrt_target_boxes = target_boxes.detach().clone()
+            # sqrt only the height and width to emphasize small objects more
+            sqrt_src_boxes[:, 2:4] = torch.sqrt(sqrt_src_boxes[:, 2:4])
+            sqrt_target_boxes[:, 2:4] = torch.sqrt(sqrt_target_boxes[:, 2:4])
+            loss_bbox = balanced_l1_loss(sqrt_src_boxes, sqrt_target_boxes, reduction='none')
 
         losses = {}
         losses['loss_bbox'] = loss_bbox.sum() / num_boxes
@@ -423,6 +481,7 @@ def build(args):
                                     skip_connection = args.skip_connection,
                                     img_size= (args.img_height, args.img_width), #todo for variable im wdith and heoight
                                     reduce_feature=args.reduce_feature,
+
                                 )
         # Make detr d_model compatible with deit
         args.hidden_dim = backbone.embed_dim
@@ -507,7 +566,7 @@ def build(args):
     if args.masks:
         losses += ["masks"]
     criterion = SetCriterion(num_classes, matcher=matcher, weight_dict=weight_dict,
-                             eos_coef=args.eos_coef, losses=losses)
+                             eos_coef=args.eos_coef, losses=losses, loss_type = args.loss_type)
     criterion.to(device)
     postprocessors = {'bbox': PostProcess()}
     if args.masks:
