@@ -31,8 +31,8 @@ from .pytorch_pretrained_vit.utils import non_strict_load_state_dict
 class DETR(nn.Module):
     """ This is the DETR module that performs object detection """
 
-    def __init__(self, backbone, transformer, num_classes, num_queries,imsize,
-                 aux_loss=False, cls_token=False, distilled=False,deit=False):
+    def __init__(self, backbone, transformer, num_classes, num_queries, imsize, datasize,
+                 aux_loss=False, cls_token=False, distilled=False, deit=False, patch_vit=False):
         """ Initializes the model.
         Parameters:
             backbone: torch module of the backbone to be used. See backbone.py
@@ -53,9 +53,11 @@ class DETR(nn.Module):
         self.init = True
         self.aux_loss = aux_loss
         self.imsize = imsize
-        self.distilled = distilled,
+        self.datasize = datasize
+        self.distilled = distilled
         self.cls_token = cls_token
         self.deit = deit #todo remove , just for a wrokarind of clas token in fwd
+        self.patch_vit = patch_vit
         if deit:# This if else condition is needed for VIT code compatibility. Can remove it when shieft to timm code totally
             self.backbone_dim = backbone.embed_dim
         else: # VIT
@@ -65,7 +67,7 @@ class DETR(nn.Module):
             self.hidden_dim_proj_src = nn.Linear(self.backbone_dim, transformer.d_model)
             self.hidden_dim_proj_pos = nn.Linear(self.backbone_dim, transformer.d_model)
 
-    def forward(self, samples: NestedTensor, patch=False):
+    def forward(self, samples: NestedTensor):
         """ The forward expects a NestedTensor, which consists of:
                - samples.tensor: batched images, of shape [batch_size x 3 x H x W]
                - samples.mask: a binary mask of shape [batch_size x H x W], containing 1 on padded pixels
@@ -85,19 +87,19 @@ class DETR(nn.Module):
         if not isinstance(samples, torch.Tensor):
             samples = samples.tensors
 
-        if patch: # TODO hardcoded for 224x224 patch and 560x560 image
-            patch_size = (224,224)
-            step = (112,112)
+        if self.patch_vit: # TODO hardcoded for 224x224 patch and 560x560 image
+            patch_size = self.imsize
+            step = (int(patch_size[0]/2),int(patch_size[1]/2))
             samples, n_patch = patchify(samples, patch_size, step)
         
         src, pos = self.backbone(samples)
 
         if self.deit:
-            if not self.distilled:
+            if self.distilled:
                 cls_dist_token, pos_token = pos[:, :2, :], pos[:, 2:, :]
                 src_token = src[:,2:,:]
             elif not self.cls_token:
-                cls_token, pos_token = pos[:, 0, :],pos[:, 1:, :]
+                cls_token, pos_token = pos[:, 0:, :],pos[:, 1:, :]
                 src_token = src[:, 1:, :]
                 # pos = self.backbone.transformer.hour_glass(pos[:, 1:, :]) #todo @tanveer later fix for hierchy, mayb not needed
                 # pos = torch.cat([token, pos], 1).contiguous()
@@ -116,17 +118,18 @@ class DETR(nn.Module):
             src_token = self.hidden_dim_proj_src(src_token)
             pos_token = self.hidden_dim_proj_pos(pos_token)
 
-        if patch: # TODO hardcoded for 224x224 patch and 560x560 image
-            patch_size = (14,14)
-            step = (7,7)
-            src_token = src_token.view(-1,n_patch[0],n_patch[1],14,14,256).permute(0,5,1,2,3,4)
+        if self.patch_vit: # TODO hardcoded for 224x224 patch and 560x560 image
+            patch_size = (int(patch_size[0]/16), int(patch_size[1]/16))
+            step = (int(patch_size[0]/2),int(patch_size[1]/2))
+            new_patchsize = (int(self.datasize[0]/16), int(self.datasize[1]/16))
+            src_token = src_token.view(-1,n_patch[0],n_patch[1],patch_size[0],patch_size[1],self.transformer.d_model).permute(0,5,1,2,3,4)
             src_token = unpatchify(src_token, step)
-            src_token = src_token.view(-1,256,35*35).permute(0,2,1)
+            src_token = src_token.view(-1,self.transformer.d_model,new_patchsize[0]*new_patchsize[1]).permute(0,2,1)
 
-            pos_token = pos_token.repeat(16,1,1)
-            pos_token = pos_token.view(-1,n_patch[0],n_patch[1],14,14,256).permute(0,5,1,2,3,4)
+            pos_token = pos_token.repeat(n_patch[0]*n_patch[1],1,1)
+            pos_token = pos_token.view(-1,n_patch[0],n_patch[1],patch_size[0],patch_size[1],self.transformer.d_model).permute(0,5,1,2,3,4)
             pos_token = unpatchify(pos_token, step)
-            pos_token = pos_token.view(-1,256,35*35).permute(0,2,1)
+            pos_token = pos_token.view(-1,self.transformer.d_model,new_patchsize[0]*new_patchsize[1]).permute(0,2,1)
 
         hs = self.transformer(src_token, mask, self.query_embed.weight, pos_token)
 
@@ -480,11 +483,9 @@ def build(args):
                                     drop_block_rate=None,
                                     skip_connection = args.skip_connection,
                                     img_size= (args.img_height, args.img_width), #todo for variable im wdith and heoight
-                                    reduce_feature=args.reduce_feature,
-
                                 )
         # Make detr d_model compatible with deit
-        args.hidden_dim = backbone.embed_dim
+        # args.hidden_dim = backbone.embed_dim  # TODO: remove this line
         if args.pretrained_vit:
             pretrained_image_size = np.repeat(int(args.pretrained_model.split('_')[-1]), 2)  # model contains sq image size in the name ex. deit_base_patch16_384
             patch_size = backbone.patch_embed.patch_size
@@ -529,11 +530,13 @@ def build(args):
         transformer,
         num_classes=num_classes,
         num_queries=args.num_queries,
-        imsize=(args.img_width, args.img_height),
+        imsize=(args.img_height, args.img_width),
+        datasize=(args.data_height, args.data_width),
         aux_loss=args.aux_loss,
-        cls_token =  args.include_class_token,
-        distilled = 'distilled' in  args.pretrained_model,
+        cls_token=args.include_class_token,
+        distilled='distilled' in  args.pretrained_model,
         deit='Deit' in args.backbone,
+        patch_vit=args.patch_vit,
     )
 
     if os.path.exists(args.detr_pretrain_dir) > 0:
