@@ -193,9 +193,9 @@ def make_coco_transforms(image_set):
 def color_augmentation(image_set):
     if image_set == 'train':
         color_aug_list = [
-            A.RandomBrightnessContrast(), A.RandomBrightnessContrast(contrast_limit=0.),
-            A.RandomBrightnessContrast(brightness_limit=0.), A.RGBShift(), A.HueSaturationValue(),
-            A.ChannelShuffle(), A.CLAHE(), A.RandomGamma(), A.Blur(), A.ToGray(), A.ToSepia(), ]
+            A.RandomBrightnessContrast(p=1), A.RandomBrightnessContrast(contrast_limit=0.,p=1),
+            A.RandomBrightnessContrast(brightness_limit=0., p=1), A.RGBShift(), A.HueSaturationValue(p=1),
+            A.ChannelShuffle(p=1), A.CLAHE(p=1), A.RandomGamma(p=1), A.Blur(p=1), A.ToGray(p=1), A.ToSepia(p=1), ]
         # Return random augmentation with 0.7 probability
         return random.choices([A.NoOp(), random.choice(color_aug_list)], weights=[0.3, 0.7])[0]
 
@@ -210,13 +210,11 @@ def spatial_augmentation(image_set, image_size):
         return F.to_tensor(img)
 
     def RandomResize(img, **params):
+        # Bbox are in normalized form [0,1]. So no need to resize bbox.
         scales = [480, 512, 544, 576, 608, 640, 672, 704, 736, 768, 800]
         size = random.choice(scales)
         random_resize = A.Resize(size, size)
-        return random_resize(img)
-
-    def RandomSizeCrop(img, **params):
-        return A.RandomSizedCrop((384, 600, img.shape[0], img.shape[1]))
+        return random_resize(image=img)['image']
 
     normalize = A.Compose([A.Resize(image_size[0], image_size[1]),  # height first for this lobrary
                            A.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225]),
@@ -229,13 +227,13 @@ def spatial_augmentation(image_set, image_size):
                 A.NoOp(),
                 A.Compose([
                     A.Lambda(p=1, image=RandomResize),
-                    A.Lambda(p=1, image=RandomSizeCrop)
+                    A.RandomSizedBBoxSafeCrop(384, 600, p=1)
                 ])
             )
         ])
-        spacial_aug_list = [A.HorizontalFlip(), A.Flip(),  # vertical
-                            A.Transpose(), A.RandomRotate90(), A.RandomSizedBBoxSafeCrop(384, 600),
-                            A.ShiftScaleRotate(), A.LongestMaxSize(), ]
+        spacial_aug_list = [A.HorizontalFlip(p=1), A.Flip(p=1),  # vertical
+                            A.Transpose(p=1), A.RandomRotate90(p=1), A.RandomSizedBBoxSafeCrop(384, 600, p=1),
+                            A.ShiftScaleRotate(p=1), A.LongestMaxSize(p=1), ]
         random_color_aug = color_augmentation(image_set)
         random_spacial_aug = random.choices([A.NoOp(), random.choice(spacial_aug_list), detr_aug], weights=[0.3, 0.35, 0.35])[0]
         transform = A.Compose([random_spacial_aug, random_color_aug, normalize],
