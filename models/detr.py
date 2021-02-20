@@ -156,7 +156,7 @@ class SetCriterion(nn.Module):
         2) we supervise each pair of matched ground-truth / prediction (supervise class and box)
     """
 
-    def __init__(self, num_classes, matcher, weight_dict, eos_coef, losses, loss_type):
+    def __init__(self, num_classes, matcher, weight_dict, eos_coef, losses, loss_type, use_fl=False):
         """ Create the criterion.
         Parameters:
             num_classes: number of object categories, omitting the special no-object category
@@ -167,6 +167,7 @@ class SetCriterion(nn.Module):
         """
         super().__init__()
         self.loss_type = loss_type
+        self.use_fl = use_fl
         self.num_classes = num_classes
         self.matcher = matcher
         self.weight_dict = weight_dict
@@ -188,8 +189,16 @@ class SetCriterion(nn.Module):
         target_classes = torch.full(src_logits.shape[:2], self.num_classes,
                                     dtype=torch.int64, device=src_logits.device)
         target_classes[idx] = target_classes_o
+        if self.use_fl: # for using focal loss
+            target_classes_onehot = torch.zeros([src_logits.shape[0], src_logits.shape[1], src_logits.shape[2] + 1],
+                                                dtype=src_logits.dtype, layout=src_logits.layout, device=src_logits.device)
+            target_classes_onehot.scatter_(2, target_classes.unsqueeze(-1), 1)
 
-        loss_ce = F.cross_entropy(src_logits.transpose(1, 2), target_classes, self.empty_weight)
+            target_classes_onehot = target_classes_onehot[:, :, :-1]
+            loss_ce =  sigmoid_focal_loss(src_logits, target_classes_onehot, num_boxes, alpha=self.focal_alpha, gamma=2) * \
+            src_logits.shape[1]
+        else:
+            loss_ce = F.cross_entropy(src_logits.transpose(1, 2), target_classes, self.empty_weight)
         losses = {'loss_ce': loss_ce}
 
         if log:
@@ -569,7 +578,7 @@ def build(args):
     if args.masks:
         losses += ["masks"]
     criterion = SetCriterion(num_classes, matcher=matcher, weight_dict=weight_dict,
-                             eos_coef=args.eos_coef, losses=losses, loss_type = args.loss_type)
+                             eos_coef=args.eos_coef, losses=losses, loss_type = args.loss_type, use_fl=args.use_fl)
     criterion.to(device)
     postprocessors = {'bbox': PostProcess()}
     if args.masks:

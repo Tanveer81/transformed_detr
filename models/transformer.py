@@ -22,18 +22,19 @@ class Transformer(nn.Module):
 
     def __init__(self, d_model=512, nhead=8, num_decoder_layers=6, dim_feedforward=2048, dropout=0.1,
                  activation="relu", normalize_before=False,
-                 return_intermediate_dec=False, backbone_name = 'resnet', cross_first=False, drop_path=0.):
+                 return_intermediate_dec=False, backbone_name = 'resnet', cross_first=False, drop_path=0):
         super().__init__()
 
         # In case of ViT backbone, self.backbone changes to "ViT" from detr
         self.backbone = backbone_name
+
         # Only use encoder for resnet backbone and not for ViT
         decoder_layer = TransformerDecoderLayer(d_model, nhead, dim_feedforward,
                                                 dropout, activation, normalize_before,cross_first,drop_path=drop_path)
 
         decoder_norm = nn.LayerNorm(d_model)
-        self.decoder = TransformerDecoder(decoder_layer, num_decoder_layers, decoder_norm,
-                                          return_intermediate=return_intermediate_dec)
+        self.decoder = TransformerDecoder(num_decoder_layers, decoder_norm,return_intermediate_dec, drop_path,d_model,
+                                          nhead, dim_feedforward, dropout, activation, normalize_before,cross_first)
 
         self._reset_parameters()
         self.dim_feedforward = dim_feedforward
@@ -62,12 +63,20 @@ class Transformer(nn.Module):
 
 class TransformerDecoder(nn.Module):
 
-    def __init__(self, decoder_layer, num_layers, norm=None, return_intermediate=False):
+    def __init__(self, num_layers, norm=None, return_intermediate=False, drop_path=0, d_model=512,
+                nhead=8, dim_feedforward=2048, dropout=0.1, activation="relu", normalize_before=False,cross_first=False):
         super().__init__()
-        self.layers = _get_clones(decoder_layer, num_layers)
+        # drop path rate
+        dpr = [x.item() for x in torch.linspace(0, drop_path, num_layers)]  # stochastic depth decay rule
+        # create decoder layer woth drop path
+        self.layers = nn.ModuleList([TransformerDecoderLayer(d_model, nhead, dim_feedforward, dropout,
+                                                             activation, normalize_before, cross_first, drop_path=dpr[i])
+                                    for i in range(num_layers)])
+
         self.num_layers = num_layers
         self.norm = norm
         self.return_intermediate = return_intermediate
+
 
     def forward(self, tgt, memory,
                 tgt_mask: Optional[Tensor] = None,
@@ -79,7 +88,6 @@ class TransformerDecoder(nn.Module):
         output = tgt
 
         intermediate = []
-
         for layer in self.layers:
             output = layer(output, memory, tgt_mask=tgt_mask,
                            memory_mask=memory_mask,
@@ -106,7 +114,7 @@ class TransformerDecoderLayer(nn.Module):
     def __init__(self, d_model, nhead, dim_feedforward=2048, dropout=0.1,
                  activation="relu", normalize_before=False, cross_first=False, drop_path=0.):
         super().__init__()
-        assert not (dropout>0. and drop_path>0.), 'dropout and drop_path cannot both be greater than 0.'
+        #assert not (dropout>0. and drop_path>0.), 'dropout and drop_path cannot both be greater than 0.'
         self.cross_first=cross_first
         self.self_attn = nn.MultiheadAttention(d_model, nhead, dropout=dropout)
         self.multihead_attn = nn.MultiheadAttention(d_model, nhead, dropout=dropout)

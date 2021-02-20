@@ -32,7 +32,7 @@ class CocoDetection(torchvision.datasets.CocoDetection):
         super(CocoDetection, self).__init__(img_folder, ann_file)
         self.image_set = image_set
         self.small_augment = small_augment
-        self.mixed_augmentation = mixed_augmentation
+        self.mixed_augmentation = mixed_augmentation #todo this small and mixed are called for validation too
         self._transforms = transforms
         if small_augment:
             self._augmentation = SmallObjectAugmentation(SOA_THRESH, SOA_PROB, SOA_COPY_TIMES,
@@ -56,7 +56,7 @@ class CocoDetection(torchvision.datasets.CocoDetection):
         # Spacial transformations/ augmentations
         if self.mixed_augmentation is not None:
             h, w = img.shape[0], img.shape[1]
-            for idx, bboxes in enumerate(target['boxes']):
+            for idx, bboxes in enumerate(target['boxes']): # convert normalize cordinate
                 bboxes[0], bboxes[2] = bboxes[0] / w, bboxes[2] / w
                 bboxes[1], bboxes[3] = bboxes[1] / h, bboxes[3] / h
                 target['boxes'][idx] = bboxes
