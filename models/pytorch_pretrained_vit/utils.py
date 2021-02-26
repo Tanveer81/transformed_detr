@@ -114,20 +114,20 @@ def load_pretrained_weights(
     #         state_dict[f'transformer.blocks.{i}.norm2.bias'] = state_dict['model'].pop(f'blocks.{i}.norm2.bias')
     # Change size of positional embeddings
     if resize_positional_embedding:
-        if deit:
-            posemb = state_dict['pos_embed']
-            posemb_new = model.state_dict()['pos_embed']
-            state_dict['pos_embed'] = \
-                resize_positional_embedding_(posemb=posemb, posemb_new=posemb_new,
-                                             has_class_token=hasattr(model, 'cls_token'), gs_old=old_img,
-                                             gs_new=new_img, distilled_token=distilled)
-            maybe_print('Resized positional embeddings from {} to {}'.format(
-                posemb.shape, posemb_new.shape), verbose)
-            print(state_dict['pos_embed'].shape)
-        else: #todo fix vit path
-            posemb = state_dict['positional_embedding.pos_embedding'] #TODO: check deit vs vit
-            posemb_new = model.state_dict()['positional_embedding.pos_embedding']
-            print(posemb_new.shape)
+        # if deit:
+        posemb = state_dict['pos_embed']
+        posemb_new = model.state_dict()['pos_embed']
+        state_dict['pos_embed'] = \
+            resize_positional_embedding_(posemb=posemb, posemb_new=posemb_new,
+                                         has_class_token=hasattr(model, 'cls_token'), gs_old=old_img,
+                                         gs_new=new_img, distilled_token=distilled)
+        maybe_print('Resized positional embeddings from {} to {}'.format(
+            posemb.shape, posemb_new.shape), verbose)
+        print(state_dict['pos_embed'].shape)
+        # else: #todo fix vit path
+        #     posemb = state_dict['positional_embedding.pos_embedding'] #TODO: check deit vs vit
+        #     posemb_new = model.state_dict()['positional_embedding.pos_embedding']
+        #     print(posemb_new.shape)
 
     # if model.distilled:
     #     state_dict['positional_embedding.pos_embedding'] = state_dict['positional_embedding.pos_embedding'][:]

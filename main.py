@@ -67,6 +67,9 @@ def get_args_parser():
     parser.add_argument('--print_details', default=False, action='store_true')
     parser.add_argument("--cuda_visible_device", nargs="*", type=int, default=None,
                         help="list of index where skip conn will be made")
+    parser.add_argument('--attention_type', default='classical', type=str,
+                        choices=['classical', 'nystrom', 'linear'])
+    parser.add_argument('--num_landmarks', default=192, type=int, help='landmark size')
 
     # Training
     parser.add_argument('--lr', default=2e-4, type=float)

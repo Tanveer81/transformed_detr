@@ -10,7 +10,7 @@ from torch import nn
 from torchvision.ops import nms
 import matplotlib.pyplot as plt
 
-from timm import create_model
+from .modified_timm.timm.timm import create_model
 from util import box_ops
 from util.misc import (NestedTensor, nested_tensor_from_tensor_list,
                        accuracy, get_world_size, interpolate,
@@ -58,10 +58,10 @@ class DETR(nn.Module):
         self.cls_token = cls_token
         self.deit = deit #todo remove , just for a wrokarind of clas token in fwd
         self.patch_vit = patch_vit
-        if deit:# This if else condition is needed for VIT code compatibility. Can remove it when shieft to timm code totally
-            self.backbone_dim = backbone.embed_dim
-        else: # VIT
-            self.backbone_dim = backbone.dim
+        # if deit:# This if else condition is needed for VIT code compatibility. Can remove it when shieft to timm code totally
+        self.backbone_dim = backbone.embed_dim
+        # else: # VIT
+        #     self.backbone_dim = backbone.dim
         # If backbone and detr has different hidden dimension, we create projection for compatability
         if self.backbone_dim != transformer.d_model:
             self.hidden_dim_proj_src = nn.Linear(self.backbone_dim, transformer.d_model)
@@ -94,18 +94,18 @@ class DETR(nn.Module):
         
         src, pos = self.backbone(samples)
 
-        if self.deit:
-            if self.distilled:
-                cls_dist_token, pos_token = pos[:, :2, :], pos[:, 2:, :]
-                src_token = src[:,2:,:]
-            elif not self.cls_token:
-                cls_token, pos_token = pos[:, 0:, :],pos[:, 1:, :]
-                src_token = src[:, 1:, :]
-                # pos = self.backbone.transformer.hour_glass(pos[:, 1:, :]) #todo @tanveer later fix for hierchy, mayb not needed
-                # pos = torch.cat([token, pos], 1).contiguous()
-        else:  #todo @tanver we dnt need to remove cls token inside vit, do it here and align else here
-                pos_token = pos
-                src_token = src
+        # if self.deit:
+        if self.distilled:
+            cls_dist_token, pos_token = pos[:, :2, :], pos[:, 2:, :]
+            src_token = src[:,2:,:]
+        elif not self.cls_token:
+            cls_token, pos_token = pos[:, 0:, :], pos[:, 1:, :]
+            src_token = src[:, 1:, :]
+            # pos = self.backbone.transformer.hour_glass(pos[:, 1:, :]) #todo @tanveer later fix for hierchy, mayb not needed
+            # pos = torch.cat([token, pos], 1).contiguous()
+        # else:  #todo @tanver we dnt need to remove cls token inside vit, do it here and align else here
+        #         pos_token = pos
+        #         src_token = src
         #         pos = self.backbone.transformer.hour_glass(pos)
         # if self.backbone.position_embedding == "learned":
         #     pos = pos.expand(src.shape[0], pos.shape[1], pos.shape[2])
@@ -476,38 +476,41 @@ def build(args):
     #     # trasformer d_model
     #     args.hidden_dim = PRETRAINED_MODELS[args.backbone]['config']['dim']
 
-    if args.backbone == "ViT":
-        backbone = ViT(args.pretrained_model, pretrained=args.pretrained_vit, pretrain_dir=args.pretrain_dir, detr_compatibility=True,
-                       position_embedding=args.position_embedding, image_size=args.img_size, num_heads=args.backbone_nheads, num_layers=args.enc_layers,
-                       include_class_token=args.include_class_token, skip_connection=args.skip_connection, hierarchy=args.hierarchy, pool=args.pool, deit='Deit' in args.backbone,)
-        # Make detr d_model compatible with vit
-        args.hidden_dim = PRETRAINED_MODELS[args.pretrained_model]['config']['dim']
-
-    else:  # for deit
-        backbone = create_model(args.pretrained_model,
-                                    pretrained=False,
-                                    num_classes=1000,
-                                    drop_rate=args.dropout,
-                                    drop_path_rate=args.drop_path,
-                                    drop_block_rate=None,
-                                    skip_connection = args.skip_connection,
-                                    img_size= (args.img_height, args.img_width), #todo for variable im wdith and heoight
-                                )
-        # Make detr d_model compatible with deit
-        # args.hidden_dim = backbone.embed_dim  # TODO: remove this line
-        if args.pretrained_vit:
-            pretrained_image_size = np.repeat(int(args.pretrained_model.split('_')[-1]), 2)  # model contains sq image size in the name ex. deit_base_patch16_384
-            patch_size = backbone.patch_embed.patch_size
-            load_pretrained_weights(
-                backbone,
-                weights_path=args.pretrain_dir,
-                load_first_conv=True,
-                resize_positional_embedding=args.img_size != tuple(pretrained_image_size),
-                old_img=(pretrained_image_size[0] // patch_size[0], pretrained_image_size[1] // patch_size[1]),  # original vit/deit 384x384
-                new_img=(args.img_size[0] // patch_size[0], args.img_size[1] // patch_size[1]),  # todo experiment with height and weight
-                deit='Deit' in args.backbone,
-                distilled='distilled' in args.pretrained_model
-            )
+    # if args.backbone == "ViT":
+    #     backbone = ViT(args.pretrained_model, pretrained=args.pretrained_vit, pretrain_dir=args.pretrain_dir, detr_compatibility=True,
+    #                    position_embedding=args.position_embedding, image_size=args.img_size, num_heads=args.backbone_nheads, num_layers=args.enc_layers,
+    #                    include_class_token=args.include_class_token, skip_connection=args.skip_connection, hierarchy=args.hierarchy, pool=args.pool, deit='Deit' in args.backbone,)
+    #     # Make detr d_model compatible with vit
+    #     args.hidden_dim = PRETRAINED_MODELS[args.pretrained_model]['config']['dim']
+    #
+    # else:  # for deit
+    backbone = create_model(args.pretrained_model,
+                                pretrained=False,
+                                num_classes=1000,
+                                drop_rate=args.dropout,
+                                drop_path_rate=args.drop_path,
+                                drop_block_rate=None,
+                                skip_connection = args.skip_connection,
+                                img_size= (args.img_height, args.img_width), #todo for variable im wdith and heoight
+                                attention_type=args.attention_type,
+                                seq_len=int((args.img_height / 16) ** 2),
+                                num_landmarks=args.num_landmarks
+                            )
+    # Make detr d_model compatible with deit
+    # args.hidden_dim = backbone.embed_dim  # TODO: remove this line
+    if args.pretrained_vit:
+        pretrained_image_size = np.repeat(int(args.pretrained_model.split('_')[-1]), 2)  # model contains sq image size in the name ex. deit_base_patch16_384
+        patch_size = backbone.patch_embed.patch_size
+        load_pretrained_weights(
+            backbone,
+            weights_path=args.pretrain_dir,
+            load_first_conv=True,
+            resize_positional_embedding=args.img_size != tuple(pretrained_image_size),
+            old_img=(pretrained_image_size[0] // patch_size[0], pretrained_image_size[1] // patch_size[1]),  # original vit/deit 384x384
+            new_img=(args.img_size[0] // patch_size[0], args.img_size[1] // patch_size[1]),  # todo experiment with height and weight
+            deit='Deit' in args.backbone,
+            distilled='distilled' in args.pretrained_model
+        )
 
     # If we want to load pretrained detr, we need to keep the dmodel = 256
     # Otherwise it will be fixed according to backbone spec above
