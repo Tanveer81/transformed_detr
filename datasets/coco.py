@@ -222,7 +222,7 @@ def spatial_augmentation(image_set, image_size):
 
     if image_set == 'train':
         detr_aug = A.Compose([
-            A.HorizontalFlip(p=1),
+            A.HorizontalFlip(p=0.5),
             A.OneOrOther(
                 A.NoOp(),
                 A.Compose([
@@ -233,13 +233,12 @@ def spatial_augmentation(image_set, image_size):
         ])
         spacial_aug_list = [A.HorizontalFlip(p=1), A.Flip(p=1),  # vertical
                             A.Transpose(p=1), A.RandomRotate90(p=1), A.RandomSizedBBoxSafeCrop(384, 600, p=1),
-                            A.ShiftScaleRotate(p=1), A.LongestMaxSize(p=1), ]
+                            A.LongestMaxSize(p=1), ] #A.ShiftScaleRotate(p=1),
         random_color_aug = color_augmentation(image_set)
-        random_spacial_aug = random.choices([A.NoOp(), random.choice(spacial_aug_list), detr_aug], weights=[0.3, 0.35, 0.35])[0]
+        random_spacial_aug = random.choices([A.NoOp(), random.choice(spacial_aug_list), detr_aug], weights=[0.4, 0, 0.6])[0]
         transform = A.Compose([random_spacial_aug, random_color_aug, normalize],
                               bbox_params=A.BboxParams(format='albumentations',
                                                        label_fields=['category_ids']))
-
 
         return transform
 

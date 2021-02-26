@@ -207,7 +207,7 @@ def main(args):
         print("Train with SGD")
         optimizer = torch.optim.SGD(param_dicts, lr=args.lr, weight_decay=args.weight_decay)
     #lr_scheduler = torch.optim.lr_scheduler.StepLR(optimizer, args.lr_drop)
-    lr_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'max', patience=5, factor=0.8,
+    lr_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'max', patience=2, factor=0.9,
                                    verbose=True, threshold=0.001, threshold_mode='abs', cooldown=1)
 
     dataset_train = build_dataset(image_set='train', args=args)
