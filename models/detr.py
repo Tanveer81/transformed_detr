@@ -32,7 +32,7 @@ class DETR(nn.Module):
     """ This is the DETR module that performs object detection """
 
     def __init__(self, backbone, transformer, num_classes, num_queries, imsize, datasize,
-                 aux_loss=False, cls_token=False, distilled=False, deit=False, patch_vit=False):
+                 aux_loss=False, cls_token=False, distilled=False, deit=False, patch_vit=False,use_proj_in_dec=False):
         """ Initializes the model.
         Parameters:
             backbone: torch module of the backbone to be used. See backbone.py
@@ -57,13 +57,14 @@ class DETR(nn.Module):
         self.distilled = distilled
         self.cls_token = cls_token
         self.deit = deit #todo remove , just for a wrokarind of clas token in fwd
+        self.use_proj_in_dec = use_proj_in_dec
         self.patch_vit = patch_vit
         if deit:# This if else condition is needed for VIT code compatibility. Can remove it when shieft to timm code totally
             self.backbone_dim = backbone.embed_dim
         else: # VIT
             self.backbone_dim = backbone.dim
         # If backbone and detr has different hidden dimension, we create projection for compatability
-        if self.backbone_dim != transformer.d_model:
+        if self.backbone_dim != transformer.d_model and not self.use_proj_in_dec:
             self.hidden_dim_proj_src = nn.Linear(self.backbone_dim, transformer.d_model)
             self.hidden_dim_proj_pos = nn.Linear(self.backbone_dim, transformer.d_model)
 
@@ -114,7 +115,7 @@ class DETR(nn.Module):
         # In case of ViT DETR transformer would not include encoder
 
         # If backbone and detr has different hidden dimension, we create projection for compatability
-        if self.backbone_dim != self.transformer.d_model:
+        if self.backbone_dim != self.transformer.d_model and not self.use_proj_in_dec:
             src_token = self.hidden_dim_proj_src(src_token)
             pos_token = self.hidden_dim_proj_pos(pos_token)
 
@@ -156,7 +157,7 @@ class SetCriterion(nn.Module):
         2) we supervise each pair of matched ground-truth / prediction (supervise class and box)
     """
 
-    def __init__(self, num_classes, matcher, weight_dict, eos_coef, losses, loss_type, use_fl=False):
+    def __init__(self, num_classes, matcher, weight_dict, eos_coef, losses, loss_type, focal_alpha=0.25, use_fl=False):
         """ Create the criterion.
         Parameters:
             num_classes: number of object categories, omitting the special no-object category
@@ -173,6 +174,7 @@ class SetCriterion(nn.Module):
         self.weight_dict = weight_dict
         self.eos_coef = eos_coef
         self.losses = losses
+        self.focal_alpha = focal_alpha
         empty_weight = torch.ones(self.num_classes + 1)
         empty_weight[-1] = self.eos_coef
         self.register_buffer('empty_weight', empty_weight)
@@ -279,7 +281,7 @@ class SetCriterion(nn.Module):
             # sqrt only the height and width to emphasize small objects more
             sqrt_src_boxes[:, 2:4] = torch.sqrt(sqrt_src_boxes[:, 2:4])
             sqrt_target_boxes[:, 2:4] = torch.sqrt(sqrt_target_boxes[:, 2:4])
-            loss_bbox = F.smooth_l1_loss(sqrt_src_boxes, sqrt_target_boxes, reduction='none')
+            loss_bbox = F.smooth_l1_loss(sqrt_src_boxes, sqrt_target_boxes, reduction='none') # todo add beta as smooth l1 palatu on beta 1
         elif self.loss_type == 'balanced_l1':
             # make a new copy of the src and target bboxes
             sqrt_src_boxes = src_boxes.detach().clone()
@@ -546,6 +548,7 @@ def build(args):
         distilled='distilled' in  args.pretrained_model,
         deit='Deit' in args.backbone,
         patch_vit=args.patch_vit,
+        use_proj_in_dec=args.use_proj_in_dec
     )
 
     if os.path.exists(args.detr_pretrain_dir) > 0:
@@ -562,7 +565,7 @@ def build(args):
     if args.masks:
         model = DETRsegm(model, freeze_detr=(args.frozen_weights is not None))
     matcher = build_matcher(args)
-    weight_dict = {'loss_ce': 1, 'loss_bbox': args.bbox_loss_coef}
+    weight_dict = {'loss_ce': args.cls_loss_coef, 'loss_bbox': args.bbox_loss_coef}
     weight_dict['loss_giou'] = args.giou_loss_coef
     if args.masks:
         weight_dict["loss_mask"] = args.mask_loss_coef

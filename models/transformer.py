@@ -22,19 +22,15 @@ class Transformer(nn.Module):
 
     def __init__(self, d_model=512, nhead=8, num_decoder_layers=6, dim_feedforward=2048, dropout=0.1,
                  activation="relu", normalize_before=False,
-                 return_intermediate_dec=False, backbone_name = 'resnet', cross_first=False, drop_path=0):
+                 return_intermediate_dec=False, backbone_name = 'resnet', cross_first=False, drop_path=0, use_proj_in_dec=False):
         super().__init__()
 
         # In case of ViT backbone, self.backbone changes to "ViT" from detr
         self.backbone = backbone_name
 
-        # Only use encoder for resnet backbone and not for ViT
-        decoder_layer = TransformerDecoderLayer(d_model, nhead, dim_feedforward,
-                                                dropout, activation, normalize_before,cross_first,drop_path=drop_path)
-
         decoder_norm = nn.LayerNorm(d_model)
-        self.decoder = TransformerDecoder(num_decoder_layers, decoder_norm,return_intermediate_dec, drop_path,d_model,
-                                          nhead, dim_feedforward, dropout, activation, normalize_before,cross_first)
+        self.decoder = TransformerDecoder(num_decoder_layers, decoder_norm, return_intermediate_dec, drop_path, d_model,
+                                          nhead, dim_feedforward, dropout, activation, normalize_before, cross_first, use_proj_in_dec)
 
         self._reset_parameters()
         self.dim_feedforward = dim_feedforward
@@ -64,13 +60,13 @@ class Transformer(nn.Module):
 class TransformerDecoder(nn.Module):
 
     def __init__(self, num_layers, norm=None, return_intermediate=False, drop_path=0, d_model=512,
-                nhead=8, dim_feedforward=2048, dropout=0.1, activation="relu", normalize_before=False,cross_first=False):
+                nhead=8, dim_feedforward=2048, dropout=0.1, activation="relu", normalize_before=False,cross_first=False, use_proj_in_dec=False):
         super().__init__()
         # drop path rate
         dpr = [x.item() for x in torch.linspace(0, drop_path, num_layers)]  # stochastic depth decay rule
         # create decoder layer woth drop path
         self.layers = nn.ModuleList([TransformerDecoderLayer(d_model, nhead, dim_feedforward, dropout,
-                                                             activation, normalize_before, cross_first, drop_path=dpr[i])
+                                                             activation, normalize_before, cross_first, use_proj_in_dec, drop_path=dpr[i])
                                     for i in range(num_layers)])
 
         self.num_layers = num_layers
@@ -112,7 +108,7 @@ class TransformerDecoder(nn.Module):
 class TransformerDecoderLayer(nn.Module):
 
     def __init__(self, d_model, nhead, dim_feedforward=2048, dropout=0.1,
-                 activation="relu", normalize_before=False, cross_first=False, drop_path=0.):
+                 activation="relu", normalize_before=False, cross_first=False, use_proj_in_dec=False, drop_path=0.):
         super().__init__()
         #assert not (dropout>0. and drop_path>0.), 'dropout and drop_path cannot both be greater than 0.'
         self.cross_first=cross_first
@@ -133,12 +129,19 @@ class TransformerDecoderLayer(nn.Module):
         self.activation = _get_activation_fn(activation)
         self.normalize_before = normalize_before
         self.d_model = d_model
+        self.use_proj_in_dec = use_proj_in_dec
+        if self.use_proj_in_dec:
+            torch.Assert(self.d_model==256,"Reduce decoder dim to 256 ")
+            self.input_proj = nn.Linear(768, self.d_model)
 
         # NOTE: drop path for stochastic depth, we shall see if this is better than dropout here
         self.drop_path = DropPath(drop_path) if drop_path > 0. else nn.Identity()
 
     def with_pos_embed(self, tensor, pos: Optional[Tensor]):
-        return tensor if pos is None else tensor + pos #todo with no positional embedding for testing
+        if self.use_proj_in_dec and not self.d_model==tensor.shape[-1]:
+            return self.input_proj(tensor if pos is None else tensor + pos)
+        else:
+            return tensor if pos is None else tensor + pos #todo with no positional embedding for testing
 
     def forward_post(self, tgt, memory,
                      tgt_mask: Optional[Tensor] = None,
@@ -234,7 +237,8 @@ def build_transformer(args):
         backbone_name=args.pretrained_model,
         activation="gelu",
         cross_first = args.cross_first,
-        drop_path = args.drop_path
+        drop_path = args.drop_path,
+        use_proj_in_dec=args.use_proj_in_dec
     )
 
     # if os.path.exists(args.detr_pretrain_dir)>0:

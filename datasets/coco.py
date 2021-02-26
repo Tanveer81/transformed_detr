@@ -240,20 +240,6 @@ def spatial_augmentation(image_set, image_size):
                               bbox_params=A.BboxParams(format='albumentations',
                                                        label_fields=['category_ids']))
 
-        return A.Compose([
-            # A.HorizontalFlip(p=1),
-            # A.Lambda(p=1, image=RandomResize),
-            # A.RandomSizedBBoxSafeCrop(384, 600, p=1),
-            # A.HorizontalFlip(p=1),
-            # A.Flip(p=1),  # vertical
-            # A.Transpose(p=1),
-            # A.RandomRotate90(p=1),
-            A.ShiftScaleRotate(p=1),
-            # A.LongestMaxSize(p=1),
-            normalize],
-            bbox_params=A.BboxParams(format='albumentations',
-                                     label_fields=['category_ids'])
-        )
 
         return transform
 
