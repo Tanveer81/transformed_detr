@@ -11,7 +11,7 @@ from torchvision.ops import nms
 import matplotlib.pyplot as plt
 import math
 
-from .modified_timm.timm.timm import create_model
+from timm import create_model
 from util import box_ops
 from util.misc import (NestedTensor, nested_tensor_from_tensor_list,
                        accuracy, get_world_size, interpolate,
@@ -500,7 +500,8 @@ def build(args):
                                 img_size= (args.img_height, args.img_width), #todo for variable im wdith and heoight
                                 attention_type=args.attention_type,
                                 seq_len=int((args.img_height / 16) ** 2),
-                                num_landmarks=args.num_landmarks
+                                num_landmarks=args.num_landmarks,
+                                deit = 'Deit' in args.backbone
                             )
     # Make detr d_model compatible with deit
     # args.hidden_dim = backbone.embed_dim  # TODO: remove this line
