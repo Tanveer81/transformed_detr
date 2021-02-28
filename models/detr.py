@@ -9,6 +9,7 @@ import torch.nn.functional as F
 from torch import nn
 from torchvision.ops import nms
 import matplotlib.pyplot as plt
+import math
 
 from .modified_timm.timm.timm import create_model
 from util import box_ops
@@ -32,7 +33,7 @@ class DETR(nn.Module):
     """ This is the DETR module that performs object detection """
 
     def __init__(self, backbone, transformer, num_classes, num_queries, imsize, datasize,
-                 aux_loss=False, cls_token=False, distilled=False, deit=False, patch_vit=False,use_proj_in_dec=False):
+                 aux_loss=False, cls_token=False, distilled=False, deit=False, patch_vit=False,use_proj_in_dec=False,fl=True):
         """ Initializes the model.
         Parameters:
             backbone: torch module of the backbone to be used. See backbone.py
@@ -61,12 +62,15 @@ class DETR(nn.Module):
         self.patch_vit = patch_vit
         # if deit:# This if else condition is needed for VIT code compatibility. Can remove it when shieft to timm code totally
         self.backbone_dim = backbone.embed_dim
-        # else: # VIT
-        #     self.backbone_dim = backbone.dim
         # If backbone and detr has different hidden dimension, we create projection for compatability
         if self.backbone_dim != transformer.d_model and not self.use_proj_in_dec:
             self.hidden_dim_proj_src = nn.Linear(self.backbone_dim, transformer.d_model)
             self.hidden_dim_proj_pos = nn.Linear(self.backbone_dim, transformer.d_model)
+        if fl:
+            prior_prob = 0.01
+            bias_value = -math.log((1 - prior_prob) / prior_prob)
+            self.class_embed.bias.data = torch.ones(num_classes) * bias_value
+
 
     def forward(self, samples: NestedTensor):
         """ The forward expects a NestedTensor, which consists of:
@@ -551,7 +555,8 @@ def build(args):
         distilled='distilled' in  args.pretrained_model,
         deit='Deit' in args.backbone,
         patch_vit=args.patch_vit,
-        use_proj_in_dec=args.use_proj_in_dec
+        use_proj_in_dec=args.use_proj_in_dec,
+        fl=args.use_fl
     )
 
     if os.path.exists(args.detr_pretrain_dir) > 0:
