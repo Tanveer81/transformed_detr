@@ -496,7 +496,8 @@ def build(args):
                                 img_size= (args.img_height, args.img_width), #todo for variable im wdith and heoight
                                 attention_type=args.attention_type,
                                 seq_len=int((args.img_height / 16) ** 2),
-                                num_landmarks=args.num_landmarks
+                                num_landmarks=args.num_landmarks,
+                                deit = 'Deit' in args.backbone
                             )
     # Make detr d_model compatible with deit
     # args.hidden_dim = backbone.embed_dim  # TODO: remove this line

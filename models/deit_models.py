@@ -48,7 +48,6 @@ class OverrideVisionTransformer(VisionTransformer):
             for blk in self.blocks:
                 x = blk(x)
 
-
         x = self.norm(x)
         return x, self.pos_embed
 
