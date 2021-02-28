@@ -1,0 +1,4 @@
+[submodule "timm"]
+	path = timm
+	url = https://github.com/rajatkoner08/timm.git
+	branch = timm_migration

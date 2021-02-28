@@ -10,7 +10,7 @@ from torch import nn
 from torchvision.ops import nms
 import matplotlib.pyplot as plt
 
-from .modified_timm.timm.timm import create_model
+from timm import create_model
 from util import box_ops
 from util.misc import (NestedTensor, nested_tensor_from_tensor_list,
                        accuracy, get_world_size, interpolate,
