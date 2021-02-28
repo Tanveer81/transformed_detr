@@ -11,7 +11,7 @@ from torchvision.ops import nms
 import matplotlib.pyplot as plt
 import math
 
-from timm import create_model
+from .timm.timm.models import create_model
 from util import box_ops
 from util.misc import (NestedTensor, nested_tensor_from_tensor_list,
                        accuracy, get_world_size, interpolate,
