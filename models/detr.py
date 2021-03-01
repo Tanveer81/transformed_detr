@@ -59,12 +59,13 @@ class DETR(nn.Module):
         self.cls_token = cls_token
         self.use_proj_in_dec = use_proj_in_dec
         self.patch_vit = patch_vit
-        # if deit:# This if else condition is needed for VIT code compatibility. Can remove it when shieft to timm code totally
         self.backbone_dim = backbone.embed_dim
         # If backbone and detr has different hidden dimension, we create projection for compatability
         if self.backbone_dim != transformer.d_model and not self.use_proj_in_dec:
             self.hidden_dim_proj_src = nn.Linear(self.backbone_dim, transformer.d_model)
             self.hidden_dim_proj_pos = nn.Linear(self.backbone_dim, transformer.d_model)
+            torch.nn.init.xavier_uniform(self.hidden_dim_proj_src.weight)
+            torch.nn.init.xavier_uniform(self.hidden_dim_proj_pos.weight)
 
         if fl: #for focal loss
             prior_prob = 0.01
@@ -100,7 +101,6 @@ class DETR(nn.Module):
         
         src, pos = self.backbone(samples)
 
-        # if self.deit:
         if self.distilled:
             cls_dist_token, pos_token = pos[:, :2, :], pos[:, 2:, :]
             src_token = src[:,2:,:]
@@ -569,14 +569,10 @@ def build(args):
         deit='Deit' in args.backbone,
         patch_vit=args.patch_vit,
         use_proj_in_dec=args.use_proj_in_dec,
-<<<<<<< HEAD
-        fl=args.use_fl
-=======
         fl = args.use_fl
->>>>>>> 5f9f0658977da8594692e4b13cff38135e753e92
     )
 
-    if os.path.exists(args.detr_pretrain_dir) > 0:
+    if os.path.exists(args.detr_pretrain_dir) > 0: #load oretrained weight of detr
         model.class_embed.weight.data.copy_(state_dict['model']['class_embed.weight'])
         model.class_embed.bias.data.copy_(state_dict['model']['class_embed.bias'])
         model.query_embed.weight.data.copy_(state_dict['model']['query_embed.weight'])

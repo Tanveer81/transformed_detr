@@ -120,7 +120,7 @@ def get_args_parser():
     parser.add_argument('--use_fl', action='store_true', help='focal loss for object cls')
     # * Matcher
     parser.add_argument('--set_cost_class', default=1, type=float,
-                        help="Class coefficient in the matching cost")
+                        help="Class coefficient in the matching cost") #todo for focal loss use 2
     parser.add_argument('--set_cost_bbox', default=5, type=float,
                         help="L1 box coefficient in the matching cost")
     parser.add_argument('--set_cost_giou', default=2, type=float,
@@ -130,7 +130,7 @@ def get_args_parser():
     parser.add_argument('--dice_loss_coef', default=1, type=float)
     parser.add_argument('--bbox_loss_coef', default=5, type=float)
     parser.add_argument('--giou_loss_coef', default=2, type=float)
-    parser.add_argument('--cls_loss_coef', default=1, type=float) # for focal loss use it 2
+    parser.add_argument('--cls_loss_coef', default=1, type=float) # todo for focal loss use it 2
     parser.add_argument('--eos_coef', default=0.1, type=float,
                         help="Relative classification weight of the no-object class")
 

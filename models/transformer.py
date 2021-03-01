@@ -73,6 +73,8 @@ class TransformerDecoder(nn.Module):
         self.norm = norm
         self.return_intermediate = return_intermediate
 
+    def with_pos_embed(self, tensor, pos: Optional[Tensor]):
+        return tensor if pos is None else tensor + pos #todo with no positional embedding for testing
 
     def forward(self, tgt, memory,
                 tgt_mask: Optional[Tensor] = None,
@@ -81,15 +83,15 @@ class TransformerDecoder(nn.Module):
                 memory_key_padding_mask: Optional[Tensor] = None,
                 pos: Optional[Tensor] = None,
                 query_pos: Optional[Tensor] = None):
-        output = tgt
-
+        output = self.with_pos_embed(tgt,query_pos) # todo test wdout adding pos encode every layer..this will enhances the reduction, upon sucess remove in decoder later
+        memory = self.with_pos_embed(memory, pos)
         intermediate = []
         for layer in self.layers:
             output = layer(output, memory, tgt_mask=tgt_mask,
                            memory_mask=memory_mask,
                            tgt_key_padding_mask=tgt_key_padding_mask,
                            memory_key_padding_mask=memory_key_padding_mask,
-                           pos=pos, query_pos=query_pos)
+                           pos=None, query_pos=None)
             if self.return_intermediate:
                 intermediate.append(self.norm(output))
 
