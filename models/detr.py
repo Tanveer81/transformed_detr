@@ -10,6 +10,7 @@ from torch import nn
 from torchvision.ops import nms
 import matplotlib.pyplot as plt
 import math
+import copy
 
 from .timm.timm.models import create_model
 from util import box_ops
@@ -28,12 +29,15 @@ from models.pytorch_pretrained_vit.model import ViT
 from models.pytorch_pretrained_vit.configs import PRETRAINED_MODELS
 from .pytorch_pretrained_vit.utils import non_strict_load_state_dict
 
+def _get_clones(module, N):
+    return nn.ModuleList([copy.deepcopy(module) for i in range(N)])
 
 class DETR(nn.Module):
     """ This is the DETR module that performs object detection """
 
     def __init__(self, backbone, transformer, num_classes, num_queries, imsize, datasize,
-                 aux_loss=False, cls_token=False, distilled=False, deit=False, patch_vit=False,use_proj_in_dec=False,fl=True):
+                 aux_loss=False, cls_token=False, distilled=False, deit=False, patch_vit=False,
+                 use_proj_in_dec=False, fl=True, with_box_refine=False):
         """ Initializes the model.
         Parameters:
             backbone: torch module of the backbone to be used. See backbone.py
@@ -42,13 +46,15 @@ class DETR(nn.Module):
             num_queries: number of object queries, ie detection slot. This is the maximal number of objects
                          DETR can detect in a single image. For COCO, we recommend 100 queries.
             aux_loss: True if auxiliary decoding losses (loss at each decoder layer) are to be used.
+            with_box_refine: iterative bounding box refinement
         """
         super().__init__()
+        self.with_box_refine = with_box_refine
         self.num_queries = num_queries
         self.transformer = transformer
         hidden_dim = transformer.d_model
-        self.class_embed = nn.Linear(hidden_dim, num_classes + 1)
-        self.bbox_embed = MLP(hidden_dim, hidden_dim, 4, 3)
+        # self.class_embed = nn.Linear(hidden_dim, num_classes + 1)
+        # self.bbox_embed = MLP(hidden_dim, hidden_dim, 4, 3)
         self.query_embed = nn.Embedding(num_queries, hidden_dim)
         self.backbone = backbone
         self.init = True
@@ -61,6 +67,17 @@ class DETR(nn.Module):
         self.patch_vit = patch_vit
         self.backbone_dim = backbone.embed_dim
         # If backbone and detr has different hidden dimension, we create projection for compatability
+
+        if with_box_refine:
+            self.class_embed = _get_clones(self.class_embed, num_pred)
+            self.bbox_embed = _get_clones(self.bbox_embed, num_pred)
+            nn.init.constant_(self.bbox_embed[0].layers[-1].bias.data[2:], -2.0)
+            # hack implementation for iterative bounding box refinement
+            self.transformer.decoder.bbox_embed = self.bbox_embed
+        else:
+            self.class_embed = nn.Linear(hidden_dim, num_classes + 1)
+            self.bbox_embed = MLP(hidden_dim, hidden_dim, 4, 3)
+
         if self.backbone_dim != transformer.d_model and not self.use_proj_in_dec:
             self.hidden_dim_proj_src = nn.Linear(self.backbone_dim, transformer.d_model)
             self.hidden_dim_proj_pos = nn.Linear(self.backbone_dim, transformer.d_model)
