@@ -16,7 +16,7 @@ from util.misc import (NestedTensor, nested_tensor_from_tensor_list,
                        accuracy, get_world_size, interpolate,
                        is_dist_avail_and_initialized, patchify, unpatchify)
 
-from .backbone import build_backbone
+import math
 from .matcher import build_matcher
 from .segmentation import (DETRsegm, PostProcessPanoptic, PostProcessSegm,
                            dice_loss, sigmoid_focal_loss)
@@ -32,7 +32,7 @@ class DETR(nn.Module):
     """ This is the DETR module that performs object detection """
 
     def __init__(self, backbone, transformer, num_classes, num_queries, imsize, datasize,
-                 aux_loss=False, cls_token=False, distilled=False, deit=False, patch_vit=False,use_proj_in_dec=False):
+                 aux_loss=False, cls_token=False, distilled=False, deit=False, patch_vit=False,use_proj_in_dec=False, fl=False):
         """ Initializes the model.
         Parameters:
             backbone: torch module of the backbone to be used. See backbone.py
@@ -56,17 +56,20 @@ class DETR(nn.Module):
         self.datasize = datasize
         self.distilled = distilled
         self.cls_token = cls_token
-        self.deit = deit #todo remove , just for a wrokarind of clas token in fwd
         self.use_proj_in_dec = use_proj_in_dec
         self.patch_vit = patch_vit
         # if deit:# This if else condition is needed for VIT code compatibility. Can remove it when shieft to timm code totally
         self.backbone_dim = backbone.embed_dim
-        # else: # VIT
-        #     self.backbone_dim = backbone.dim
         # If backbone and detr has different hidden dimension, we create projection for compatability
         if self.backbone_dim != transformer.d_model and not self.use_proj_in_dec:
             self.hidden_dim_proj_src = nn.Linear(self.backbone_dim, transformer.d_model)
             self.hidden_dim_proj_pos = nn.Linear(self.backbone_dim, transformer.d_model)
+        if fl: #for focal loss
+            prior_prob = 0.01
+            bias_value = -math.log((1 - prior_prob) / prior_prob)
+            self.class_embed.bias.data = torch.ones(num_classes) * bias_value
+            nn.init.constant_(self.bbox_embed.layers[-1].weight.data, 0)
+            nn.init.constant_(self.bbox_embed.layers[-1].bias.data, 0)
 
     def forward(self, samples: NestedTensor):
         """ The forward expects a NestedTensor, which consists of:
@@ -100,7 +103,7 @@ class DETR(nn.Module):
             cls_dist_token, pos_token = pos[:, :2, :], pos[:, 2:, :]
             src_token = src[:,2:,:]
         elif not self.cls_token:
-            cls_token, pos_token = pos[:, 0:, :], pos[:, 1:, :]
+            cls_token, pos_token = pos[:, :1, :], pos[:, 1:, :]
             src_token = src[:, 1:, :]
             # pos = self.backbone.transformer.hour_glass(pos[:, 1:, :]) #todo @tanveer later fix for hierchy, mayb not needed
             # pos = torch.cat([token, pos], 1).contiguous()
@@ -397,13 +400,14 @@ class SetCriterion(nn.Module):
 
 class PostProcess(nn.Module):
     """ This module converts the model's output into the format expected by the coco api"""
-    def __init__(self, use_nms=False):
+    def __init__(self, use_nms=False, fl=False):
         """ Create the criterion.
         Parameters:
             nms: non maximum supression for detected object
         """
         super().__init__()
         self.use_nms = use_nms
+        self.fl = fl
 
     @torch.no_grad()
     def forward(self, outputs, target_sizes):
@@ -418,12 +422,22 @@ class PostProcess(nn.Module):
 
         assert len(out_logits) == len(target_sizes)
         assert target_sizes.shape[1] == 2
+        if self.fl:
+            prob = out_logits.sigmoid()
+            topk_values, topk_indexes = torch.topk(prob.view(out_logits.shape[0], -1), 100, dim=1)
+            scores = topk_values
+            topk_boxes = topk_indexes // out_logits.shape[2]
+            labels = topk_indexes % out_logits.shape[2]
+            boxes = box_ops.box_cxcywh_to_xyxy(out_bbox)
+            boxes = torch.gather(boxes, 1, topk_boxes.unsqueeze(-1).repeat(1, 1, 4))
 
-        prob = F.softmax(out_logits, -1)
-        scores, labels = prob[..., :-1].max(-1)
+        else:
+            prob = F.softmax(out_logits, -1)
+            scores, labels = prob[..., :-1].max(-1)
+            # convert to [x0, y0, x1, y1] format
+            boxes = box_ops.box_cxcywh_to_xyxy(out_bbox)
 
-        # convert to [x0, y0, x1, y1] format
-        boxes = box_ops.box_cxcywh_to_xyxy(out_bbox)
+
         # and from relative [0, 1] to absolute [0, height] coordinates
         img_h, img_w = target_sizes.unbind(1)
         scale_fct = torch.stack([img_w, img_h, img_w, img_h], dim=1)
@@ -552,7 +566,8 @@ def build(args):
         distilled='distilled' in  args.pretrained_model,
         deit='Deit' in args.backbone,
         patch_vit=args.patch_vit,
-        use_proj_in_dec=args.use_proj_in_dec
+        use_proj_in_dec=args.use_proj_in_dec,
+        fl = args.use_fl
     )
 
     if os.path.exists(args.detr_pretrain_dir) > 0:
@@ -587,7 +602,7 @@ def build(args):
     criterion = SetCriterion(num_classes, matcher=matcher, weight_dict=weight_dict,
                              eos_coef=args.eos_coef, losses=losses, loss_type = args.loss_type, use_fl=args.use_fl)
     criterion.to(device)
-    postprocessors = {'bbox': PostProcess()}
+    postprocessors = {'bbox': PostProcess(args.use_fl)}
     if args.masks:
         postprocessors['segm'] = PostProcessSegm()
         if args.dataset_file == "coco_panoptic":
