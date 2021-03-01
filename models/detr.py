@@ -16,7 +16,7 @@ from .timm.timm.models import create_model
 from util import box_ops
 from util.misc import (NestedTensor, nested_tensor_from_tensor_list,
                        accuracy, get_world_size, interpolate,
-                       is_dist_avail_and_initialized, patchify, unpatchify)
+                       is_dist_avail_and_initialized, patchify, unpatchify, inverse_sigmoid)
 
 import math
 from .matcher import build_matcher
@@ -53,8 +53,8 @@ class DETR(nn.Module):
         self.num_queries = num_queries
         self.transformer = transformer
         hidden_dim = transformer.d_model
-        # self.class_embed = nn.Linear(hidden_dim, num_classes + 1)
-        # self.bbox_embed = MLP(hidden_dim, hidden_dim, 4, 3)
+        self.class_embed = nn.Linear(hidden_dim, num_classes + 1)
+        self.bbox_embed = MLP(hidden_dim, hidden_dim, 4, 3)
         self.query_embed = nn.Embedding(num_queries, hidden_dim)
         self.backbone = backbone
         self.init = True
@@ -69,14 +69,11 @@ class DETR(nn.Module):
         # If backbone and detr has different hidden dimension, we create projection for compatability
 
         if with_box_refine:
-            self.class_embed = _get_clones(self.class_embed, num_pred)
-            self.bbox_embed = _get_clones(self.bbox_embed, num_pred)
+            self.class_embed = _get_clones(self.class_embed, transformer.decoder.num_layers)
+            self.bbox_embed = _get_clones(self.bbox_embed, transformer.decoder.num_layers)
             nn.init.constant_(self.bbox_embed[0].layers[-1].bias.data[2:], -2.0)
             # hack implementation for iterative bounding box refinement
-            self.transformer.decoder.bbox_embed = self.bbox_embed
-        else:
-            self.class_embed = nn.Linear(hidden_dim, num_classes + 1)
-            self.bbox_embed = MLP(hidden_dim, hidden_dim, 4, 3)
+            # self.transformer.decoder.bbox_embed = self.bbox_embed
 
         if self.backbone_dim != transformer.d_model and not self.use_proj_in_dec:
             self.hidden_dim_proj_src = nn.Linear(self.backbone_dim, transformer.d_model)
@@ -156,8 +153,37 @@ class DETR(nn.Module):
 
         hs = self.transformer(src_token, mask, self.query_embed.weight, pos_token)
 
-        outputs_class = self.class_embed(hs)
-        outputs_coord = self.bbox_embed(hs).sigmoid()
+        if self.with_box_refine:
+            outputs_classes = []
+            outputs_coords = []
+            for lvl in range(hs.shape[0]):
+                # if lvl == 0:
+                #     reference = init_reference
+                # else:
+                #     reference = inter_references[lvl - 1]
+                # reference = inverse_sigmoid(reference)
+                outputs_class = self.class_embed[lvl](hs[lvl])
+                tmp = self.bbox_embed[lvl](hs[lvl])
+
+                if lvl != 0:
+                    reference = outputs_coords[-1]
+                    reference = inverse_sigmoid(reference)
+                    tmp += reference
+
+                # if reference.shape[-1] == 4:
+                #     tmp += reference
+                # else:
+                #     assert reference.shape[-1] == 2
+                #     tmp[..., :2] += reference
+                outputs_coord = tmp.sigmoid()
+                outputs_classes.append(outputs_class)
+                outputs_coords.append(outputs_coord)
+            outputs_class = torch.stack(outputs_classes)
+            outputs_coord = torch.stack(outputs_coords)
+        else:
+            outputs_class = self.class_embed(hs)
+            outputs_coord = self.bbox_embed(hs).sigmoid()
+
         out = {'pred_logits': outputs_class[-1], 'pred_boxes': outputs_coord[-1]}
         if self.aux_loss:
             out['aux_outputs'] = self._set_aux_loss(outputs_class, outputs_coord)
@@ -586,7 +612,8 @@ def build(args):
         deit='Deit' in args.backbone,
         patch_vit=args.patch_vit,
         use_proj_in_dec=args.use_proj_in_dec,
-        fl = args.use_fl
+        fl = args.use_fl,
+        with_box_refine=args.with_box_refine,
     )
 
     if os.path.exists(args.detr_pretrain_dir) > 0: #load oretrained weight of detr
