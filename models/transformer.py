@@ -22,7 +22,7 @@ class Transformer(nn.Module):
 
     def __init__(self, d_model=512, nhead=8, num_decoder_layers=6, dim_feedforward=2048, dropout=0.1,
                  activation="relu", normalize_before=False,
-                 return_intermediate_dec=False, backbone_name = 'resnet', cross_first=False, drop_path=0, use_proj_in_dec=False):
+                 return_intermediate_dec=False, backbone_name = 'resnet', cross_first=False, drop_path=0, use_proj_in_dec=False, bkbone_dim=768):
         super().__init__()
 
         # In case of ViT backbone, self.backbone changes to "ViT" from detr
@@ -30,7 +30,7 @@ class Transformer(nn.Module):
 
         decoder_norm = nn.LayerNorm(d_model)
         self.decoder = TransformerDecoder(num_decoder_layers, decoder_norm, return_intermediate_dec, drop_path, d_model,
-                                          nhead, dim_feedforward, dropout, activation, normalize_before, cross_first, use_proj_in_dec)
+                                          nhead, dim_feedforward, dropout, activation, normalize_before, cross_first, use_proj_in_dec, bkbone_dim)
 
         self._reset_parameters()
         self.dim_feedforward = dim_feedforward
@@ -60,13 +60,17 @@ class Transformer(nn.Module):
 class TransformerDecoder(nn.Module):
 
     def __init__(self, num_layers, norm=None, return_intermediate=False, drop_path=0, d_model=512,
-                nhead=8, dim_feedforward=2048, dropout=0.1, activation="relu", normalize_before=False,cross_first=False, use_proj_in_dec=False):
+                nhead=8, dim_feedforward=2048, dropout=0.1, activation="relu", normalize_before=False,cross_first=False, use_proj_in_dec=False,bkbone_dim=768,reduce_backbone=None):
         super().__init__()
+        if d_model!=bkbone_dim: # reduce the prjection decoder layer wise
+            reduce_backbone = nn.Linear(bkbone_dim, d_model)
+            torch.nn.init.xavier_uniform(reduce_backbone.weight)
+
         # drop path rate
         dpr = [x.item() for x in torch.linspace(0, drop_path, num_layers)]  # stochastic depth decay rule
         # create decoder layer woth drop path
         self.layers = nn.ModuleList([TransformerDecoderLayer(d_model, nhead, dim_feedforward, dropout,
-                                                             activation, normalize_before, cross_first, use_proj_in_dec, drop_path=dpr[i])
+                                                             activation, normalize_before, cross_first, use_proj_in_dec, reduce_backbone, drop_path=dpr[i])
                                     for i in range(num_layers)])
 
         self.num_layers = num_layers
@@ -83,15 +87,14 @@ class TransformerDecoder(nn.Module):
                 memory_key_padding_mask: Optional[Tensor] = None,
                 pos: Optional[Tensor] = None,
                 query_pos: Optional[Tensor] = None):
-        output = self.with_pos_embed(tgt,query_pos) # todo test wdout adding pos encode every layer..this will enhances the reduction, upon sucess remove in decoder later
-        memory = self.with_pos_embed(memory, pos)
+        output = tgt
         intermediate = []
         for layer in self.layers:
             output = layer(output, memory, tgt_mask=tgt_mask,
                            memory_mask=memory_mask,
                            tgt_key_padding_mask=tgt_key_padding_mask,
                            memory_key_padding_mask=memory_key_padding_mask,
-                           pos=None, query_pos=None)
+                           pos=pos, query_pos=query_pos)
             if self.return_intermediate:
                 intermediate.append(self.norm(output))
 
@@ -110,7 +113,7 @@ class TransformerDecoder(nn.Module):
 class TransformerDecoderLayer(nn.Module):
 
     def __init__(self, d_model, nhead, dim_feedforward=2048, dropout=0.1,
-                 activation="relu", normalize_before=False, cross_first=False, use_proj_in_dec=False, drop_path=0.):
+                 activation="relu", normalize_before=False, cross_first=False, use_proj_in_dec=False, reduce_backbone=None, drop_path=0.):
         super().__init__()
         #assert not (dropout>0. and drop_path>0.), 'dropout and drop_path cannot both be greater than 0.'
         self.cross_first=cross_first
@@ -132,6 +135,7 @@ class TransformerDecoderLayer(nn.Module):
         self.normalize_before = normalize_before
         self.d_model = d_model
         self.use_proj_in_dec = use_proj_in_dec
+        self.reduce_backbone = reduce_backbone
         if self.use_proj_in_dec:
             torch.Assert(self.d_model==256,"Reduce decoder dim to 256 ")
             self.input_proj = nn.Linear(768, self.d_model)
@@ -142,6 +146,8 @@ class TransformerDecoderLayer(nn.Module):
     def with_pos_embed(self, tensor, pos: Optional[Tensor]):
         if self.use_proj_in_dec and not self.d_model==tensor.shape[-1]:
             return self.input_proj(tensor if pos is None else tensor + pos)
+        elif self.reduce_backbone !=None and not self.d_model==tensor.shape[-1]:
+            return self.reduce_backbone(tensor if pos is None else tensor + pos)
         else:
             return tensor if pos is None else tensor + pos #todo with no positional embedding for testing
 
@@ -227,7 +233,7 @@ def _get_clones(module, N):
     return nn.ModuleList([copy.deepcopy(module) for i in range(N)])
 
 
-def build_transformer(args):
+def build_transformer(args, bkbone_dim=768):
     transformer = Transformer(
         d_model=args.hidden_dim,
         dropout=args.dropout,
@@ -240,25 +246,9 @@ def build_transformer(args):
         activation="gelu",
         cross_first = args.cross_first,
         drop_path = args.drop_path,
-        use_proj_in_dec=args.use_proj_in_dec
+        use_proj_in_dec=args.use_proj_in_dec,
+        bkbone_dim=bkbone_dim,
     )
-
-    # if os.path.exists(args.detr_pretrain_dir)>0:
-    #     state_dict = torch.load(args.detr_pretrain_dir)
-    #
-    #     for old_key, old_val in list(state_dict['model'].items()):
-    #         if any(k in old_key for k in ['encoder', 'backbone']) : # delete unnecessary kwys with enoder,bconv backbone as on decoder weight is needed
-    #             del state_dict['model'][old_key]
-    #         else:
-    #             del state_dict['model'][old_key]
-    #             new_key = old_key.replace('transformer.', '')
-    #             state_dict['model'][new_key] = old_val
-    #
-    #     ret = non_strict_load_state_dict(transformer, state_dict['model'])
-    #
-    #     print('Missing keys when loading pretrained weights: {}'.format(ret.missing_keys))
-    #     print('Unexpected keys when loading pretrained weights: {}'.format(ret.unexpected_keys))
-    #     print('Loaded Detr weight from %s'%args.detr_pretrain_dir)
 
     return transformer
 

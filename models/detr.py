@@ -61,11 +61,11 @@ class DETR(nn.Module):
         self.patch_vit = patch_vit
         self.backbone_dim = backbone.embed_dim
         # If backbone and detr has different hidden dimension, we create projection for compatability
-        if self.backbone_dim != transformer.d_model and not self.use_proj_in_dec:
-            self.hidden_dim_proj_src = nn.Linear(self.backbone_dim, transformer.d_model)
-            self.hidden_dim_proj_pos = nn.Linear(self.backbone_dim, transformer.d_model)
-            torch.nn.init.xavier_uniform(self.hidden_dim_proj_src.weight)
-            torch.nn.init.xavier_uniform(self.hidden_dim_proj_pos.weight)
+        # if self.backbone_dim != transformer.d_model and not self.use_proj_in_dec:
+        #     self.hidden_dim_proj_src = nn.Linear(self.backbone_dim, transformer.d_model)
+        #     self.hidden_dim_proj_pos = nn.Linear(self.backbone_dim, transformer.d_model)
+        #     torch.nn.init.xavier_uniform(self.hidden_dim_proj_src.weight)
+        #     torch.nn.init.xavier_uniform(self.hidden_dim_proj_pos.weight)
 
         if fl: #for focal loss
             prior_prob = 0.01
@@ -120,9 +120,9 @@ class DETR(nn.Module):
         # In case of ViT DETR transformer would not include encoder
 
         # If backbone and detr has different hidden dimension, we create projection for compatability
-        if self.backbone_dim != self.transformer.d_model and not self.use_proj_in_dec:
-            src_token = self.hidden_dim_proj_src(src_token)
-            pos_token = self.hidden_dim_proj_pos(pos_token)
+        # if self.backbone_dim != self.transformer.d_model and not self.use_proj_in_dec:
+        #     src_token = self.hidden_dim_proj_src(src_token)
+        #     pos_token = self.hidden_dim_proj_pos(pos_token)
 
         if self.patch_vit: # TODO hardcoded for 224x224 patch and 560x560 image
             patch_size = (int(patch_size[0]/16), int(patch_size[1]/16))
@@ -536,7 +536,7 @@ def build(args):
     if os.path.exists(args.detr_pretrain_dir) > 0:
         args.hidden_dim = 256 # as pretrained detr dim was 256
 
-    transformer = build_transformer(args)
+    transformer = build_transformer(args, bkbone_dim = backbone.embed_dim)
 
     #TODO: Load weights here
     if os.path.exists(args.detr_pretrain_dir)>0:
