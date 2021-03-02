@@ -70,6 +70,7 @@ def get_args_parser():
     parser.add_argument('--attention_type', default='classical', type=str,
                         choices=['classical', 'nystrom', 'linear'])
     parser.add_argument('--num_landmarks', default=192, type=int, help='landmark size')
+    parser.add_argument('--with_box_refine', default=False, action='store_true')
 
     # Training
     parser.add_argument('--lr', default=2e-4, type=float)
