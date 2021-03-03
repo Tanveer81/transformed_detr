@@ -10,7 +10,7 @@ Copy-paste from torch.nn.Transformer with modifications:
 import copy
 from typing import Optional, List
 import os
-
+import numpy as np
 import math
 import torch
 import torch.nn.functional as F
@@ -21,16 +21,16 @@ from timm.models.layers import DropPath
 class Transformer(nn.Module):
 
     def __init__(self, d_model=512, nhead=8, num_decoder_layers=6, dim_feedforward=2048, dropout=0.1,
-                 activation="relu", normalize_before=False,
-                 return_intermediate_dec=False, backbone_name = 'resnet', cross_first=False, drop_path=0, use_proj_in_dec=False, bkbone_dim=768):
+                 activation="relu", normalize_before=False, return_intermediate_dec=False,
+                  backbone_name = 'resnet', cross_first=False, drop_path=0, use_proj_in_dec=False, bkbone_dim=768, hierarchical_pool=False):
         super().__init__()
 
         # In case of ViT backbone, self.backbone changes to "ViT" from detr
         self.backbone = backbone_name
 
         decoder_norm = nn.LayerNorm(d_model)
-        self.decoder = TransformerDecoder(num_decoder_layers, decoder_norm, return_intermediate_dec, drop_path, d_model,
-                                          nhead, dim_feedforward, dropout, activation, normalize_before, cross_first, use_proj_in_dec, bkbone_dim)
+        self.decoder = TransformerDecoder(num_decoder_layers, decoder_norm, return_intermediate_dec, drop_path, d_model,nhead, dim_feedforward,
+                                           dropout, activation, normalize_before, cross_first, use_proj_in_dec, bkbone_dim, hierarchical_pool)
 
         self._reset_parameters()
         self.dim_feedforward = dim_feedforward
@@ -60,25 +60,26 @@ class Transformer(nn.Module):
 class TransformerDecoder(nn.Module):
 
     def __init__(self, num_layers, norm=None, return_intermediate=False, drop_path=0, d_model=512,
-                nhead=8, dim_feedforward=2048, dropout=0.1, activation="relu", normalize_before=False,cross_first=False, use_proj_in_dec=False,bkbone_dim=768,reduce_backbone=None):
+                nhead=8, dim_feedforward=2048, dropout=0.1, activation="relu", normalize_before=False,cross_first=False, use_proj_in_dec=False,
+                 bkbone_dim=768, hierarchical_pool=None, reduce_backbone=None, avg_pool=None):
         super().__init__()
         if d_model!=bkbone_dim: # reduce the prjection decoder layer wise
             reduce_backbone = nn.Linear(bkbone_dim, d_model)
-            torch.nn.init.xavier_uniform(reduce_backbone.weight)
-
+            torch.nn.init.xavier_uniform_(reduce_backbone.weight)
+        #use avg pool for multiscale feature map
+        if hierarchical_pool:
+            avg_pool = nn.AdaptiveAvgPool2d((24,24))
         # drop path rate
         dpr = [x.item() for x in torch.linspace(0, drop_path, num_layers)]  # stochastic depth decay rule
         # create decoder layer woth drop path
-        self.layers = nn.ModuleList([TransformerDecoderLayer(d_model, nhead, dim_feedforward, dropout,
-                                                             activation, normalize_before, cross_first, use_proj_in_dec, reduce_backbone, drop_path=dpr[i])
+        self.layers = nn.ModuleList([TransformerDecoderLayer(d_model, nhead, dim_feedforward, dropout,activation, normalize_before,
+                                                              cross_first, use_proj_in_dec, reduce_backbone, i, avg_pool, drop_path=dpr[i])
                                     for i in range(num_layers)])
 
         self.num_layers = num_layers
         self.norm = norm
         self.return_intermediate = return_intermediate
 
-    def with_pos_embed(self, tensor, pos: Optional[Tensor]):
-        return tensor if pos is None else tensor + pos #todo with no positional embedding for testing
 
     def forward(self, tgt, memory,
                 tgt_mask: Optional[Tensor] = None,
@@ -113,7 +114,8 @@ class TransformerDecoder(nn.Module):
 class TransformerDecoderLayer(nn.Module):
 
     def __init__(self, d_model, nhead, dim_feedforward=2048, dropout=0.1,
-                 activation="relu", normalize_before=False, cross_first=False, use_proj_in_dec=False, reduce_backbone=None, drop_path=0.):
+                 activation="relu", normalize_before=False, cross_first=False, use_proj_in_dec=False, reduce_backbone=None,
+                 layer_num=None, avg_pool=None, drop_path=0.):
         super().__init__()
         #assert not (dropout>0. and drop_path>0.), 'dropout and drop_path cannot both be greater than 0.'
         self.cross_first=cross_first
@@ -142,6 +144,8 @@ class TransformerDecoderLayer(nn.Module):
 
         # NOTE: drop path for stochastic depth, we shall see if this is better than dropout here
         self.drop_path = DropPath(drop_path) if drop_path > 0. else nn.Identity()
+        self.layer_number = layer_num
+        self.avg_pool = avg_pool
 
     def with_pos_embed(self, tensor, pos: Optional[Tensor]):
         if self.use_proj_in_dec and not self.d_model==tensor.shape[-1]:
@@ -151,6 +155,14 @@ class TransformerDecoderLayer(nn.Module):
         else:
             return tensor if pos is None else tensor + pos #todo with no positional embedding for testing
 
+    def wd_ap(self, tensor):
+        if self.layer_number < 3 and self.avg_pool != None:  # todo hack implementation, clean later
+            token_len, bs, dim = tensor.shape
+            im_size = int(np.sqrt(token_len))
+            tensor = self.avg_pool(tensor.view(im_size, im_size, bs, dim).permute(2, 3, 0, 1))
+            return tensor.view(bs, dim, -1).permute(2,0,1)
+        else:
+            return  tensor
     def forward_post(self, tgt, memory,
                      tgt_mask: Optional[Tensor] = None,
                      memory_mask: Optional[Tensor] = None,
@@ -180,11 +192,10 @@ class TransformerDecoderLayer(nn.Module):
             tgt2 = self.self_attn(q, k, value=tgt, attn_mask=tgt_mask, key_padding_mask=tgt_key_padding_mask)[0]
             tgt = tgt + self.dropout1(tgt2)
             tgt = self.norm1(tgt)
-
             tgt2 = self.multihead_attn(query=self.with_pos_embed(tgt, query_pos),
-                                       key=self.with_pos_embed(memory, pos),
-                                       value=self.with_pos_embed(memory, None), attn_mask=memory_mask,
-                                       key_padding_mask=memory_key_padding_mask)[0]
+                                           key=self.wd_ap(self.with_pos_embed(memory, pos)),
+                                           value=self.wd_ap(self.with_pos_embed(memory, None)), attn_mask=memory_mask,
+                                           key_padding_mask=memory_key_padding_mask)[0]
             tgt = tgt + self.drop_path(self.dropout2(tgt2))
             tgt = self.norm2(tgt)
         tgt2 = self.linear2(self.dropout(self.activation(self.linear1(tgt))))
@@ -248,6 +259,7 @@ def build_transformer(args, bkbone_dim=768):
         drop_path = args.drop_path,
         use_proj_in_dec=args.use_proj_in_dec,
         bkbone_dim=bkbone_dim,
+        hierarchical_pool = args.use_ms_dec
     )
 
     return transformer

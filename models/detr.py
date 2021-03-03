@@ -79,13 +79,6 @@ class DETR(nn.Module):
             nn.init.constant_(self.bbox_embed[0].layers[-1].bias.data[2:], -2.0)
             # hack implementation for iterative bounding box refinement
             # self.transformer.decoder.bbox_embed = self.bbox_embed
-
-        if self.backbone_dim != transformer.d_model and not self.use_proj_in_dec:
-            self.hidden_dim_proj_src = nn.Linear(self.backbone_dim, transformer.d_model)
-            self.hidden_dim_proj_pos = nn.Linear(self.backbone_dim, transformer.d_model)
-            torch.nn.init.xavier_uniform(self.hidden_dim_proj_src.weight)
-            torch.nn.init.xavier_uniform(self.hidden_dim_proj_pos.weight)
-
         if fl: #for focal loss
             prior_prob = 0.01
             bias_value = -math.log((1 - prior_prob) / prior_prob)

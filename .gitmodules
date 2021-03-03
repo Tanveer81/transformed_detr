@@ -1,0 +1,4 @@
+
+[submodule "timm"]
+	path = models/timm
+	url = https://github.com/rajatkoner08/timm.git
