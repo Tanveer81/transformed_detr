@@ -68,7 +68,7 @@ class TransformerDecoder(nn.Module):
             torch.nn.init.xavier_uniform_(reduce_backbone.weight)
         #use avg pool for multiscale feature map
         if hierarchical_pool:
-            avg_pool = nn.AdaptiveAvgPool2d((24,24))
+            avg_pool = nn.AdaptiveAvgPool2d((24, 24))
         # drop path rate
         dpr = [x.item() for x in torch.linspace(0, drop_path, num_layers)]  # stochastic depth decay rule
         # create decoder layer woth drop path
@@ -150,19 +150,20 @@ class TransformerDecoderLayer(nn.Module):
     def with_pos_embed(self, tensor, pos: Optional[Tensor]):
         if self.use_proj_in_dec and not self.d_model==tensor.shape[-1]:
             return self.input_proj(tensor if pos is None else tensor + pos)
-        elif self.reduce_backbone !=None and not self.d_model==tensor.shape[-1]:
+        elif self.reduce_backbone != None and not self.d_model==tensor.shape[-1]:
             return self.reduce_backbone(tensor if pos is None else tensor + pos)
         else:
             return tensor if pos is None else tensor + pos #todo with no positional embedding for testing
 
     def wd_ap(self, tensor):
-        if self.layer_number < 3 and self.avg_pool != None:  # todo hack implementation, clean later
+        if self.layer_number < 3 and self.avg_pool is not None:  # todo hack implementation, clean later
             token_len, bs, dim = tensor.shape
             im_size = int(np.sqrt(token_len))
             tensor = self.avg_pool(tensor.view(im_size, im_size, bs, dim).permute(2, 3, 0, 1))
             return tensor.view(bs, dim, -1).permute(2,0,1)
         else:
             return  tensor
+
     def forward_post(self, tgt, memory,
                      tgt_mask: Optional[Tensor] = None,
                      memory_mask: Optional[Tensor] = None,
@@ -182,7 +183,7 @@ class TransformerDecoderLayer(nn.Module):
             tgt = self.norm2(tgt)
 
             q = k = self.with_pos_embed(tgt, query_pos) #tgt if self.cross_first else  todo experiment wdout pos emebeding as for cross attn its already done earlier
-            tgt2 = self.self_attn(q, k, value=tgt, attn_mask=tgt_mask,key_padding_mask=tgt_key_padding_mask)[0]
+            tgt2 = self.self_attn(q, k, value=tgt, attn_mask=tgt_mask, key_padding_mask=tgt_key_padding_mask)[0]
             tgt = tgt + self.drop_path(self.dropout1(tgt2))
             tgt = self.norm1(tgt)
 
