@@ -203,7 +203,7 @@ class SetCriterion(nn.Module):
         2) we supervise each pair of matched ground-truth / prediction (supervise class and box)
     """
 
-    def __init__(self, num_classes, matcher, weight_dict, eos_coef, losses, loss_type, focal_alpha=0.25, use_fl=False):
+    def __init__(self, num_classes, matcher, weight_dict, eos_coef, losses, loss_type, focal_alpha=0.25, use_fl=False, loss_transform='sqrt'):
         """ Create the criterion.
         Parameters:
             num_classes: number of object categories, omitting the special no-object category
@@ -213,6 +213,7 @@ class SetCriterion(nn.Module):
             losses: list of all the losses to be applied. See get_loss for list of available losses.
         """
         super().__init__()
+        self.loss_transform=loss_transform
         self.loss_type = loss_type
         self.use_fl = use_fl
         self.num_classes = num_classes
@@ -320,22 +321,22 @@ class SetCriterion(nn.Module):
 
         if self.loss_type == 'l1':
             loss_bbox = F.l1_loss(src_boxes, target_boxes, reduction='none')
-        elif self.loss_type == 'smooth_l1':
+        else:
             # make a new copy of the src and target bboxes
-            sqrt_src_boxes = src_boxes.detach().clone()
-            sqrt_target_boxes = target_boxes.detach().clone()
-            # sqrt only the height and width to emphasize small objects more
-            sqrt_src_boxes[:, 2:4] = torch.sqrt(sqrt_src_boxes[:, 2:4])
-            sqrt_target_boxes[:, 2:4] = torch.sqrt(sqrt_target_boxes[:, 2:4])
-            loss_bbox = F.smooth_l1_loss(sqrt_src_boxes, sqrt_target_boxes, reduction='none') # todo add beta as smooth l1 palatu on beta 1
-        elif self.loss_type == 'balanced_l1':
-            # make a new copy of the src and target bboxes
-            sqrt_src_boxes = src_boxes.detach().clone()
-            sqrt_target_boxes = target_boxes.detach().clone()
-            # sqrt only the height and width to emphasize small objects more
-            sqrt_src_boxes[:, 2:4] = torch.sqrt(sqrt_src_boxes[:, 2:4])
-            sqrt_target_boxes[:, 2:4] = torch.sqrt(sqrt_target_boxes[:, 2:4])
-            loss_bbox = balanced_l1_loss(sqrt_src_boxes, sqrt_target_boxes, reduction='none')
+            transformed_src_boxes = src_boxes.detach().clone()
+            transformed_target_boxes = target_boxes.detach().clone()
+            if self.loss_transform =='sqrt':
+                # sqrt only the height and width to emphasize small objects more
+                transformed_src_boxes[:, 2:4] = torch.sqrt(transformed_src_boxes[:, 2:4])
+                transformed_target_boxes[:, 2:4] = torch.sqrt(transformed_target_boxes[:, 2:4])
+            elif self.loss_transform =='log':
+                # sqrt only the height and width to emphasize small objects more
+                transformed_src_boxes[:, 2:4] = torch.log(transformed_src_boxes[:, 2:4])
+                transformed_target_boxes[:, 2:4] = torch.log(transformed_target_boxes[:, 2:4])
+            if self.loss_type == 'smooth_l1':
+                loss_bbox = F.smooth_l1_loss(transformed_src_boxes, transformed_target_boxes, reduction='none') # todo add beta as smooth l1 palatu on beta 1
+            elif self.loss_type == 'balanced_l1':
+                loss_bbox = balanced_l1_loss(transformed_src_boxes, transformed_target_boxes, reduction='none')
 
         losses = {}
         losses['loss_bbox'] = loss_bbox.sum() / num_boxes
@@ -644,7 +645,7 @@ def build(args):
     if args.masks:
         losses += ["masks"]
     criterion = SetCriterion(num_classes, matcher=matcher, weight_dict=weight_dict,
-                             eos_coef=args.eos_coef, losses=losses, loss_type = args.loss_type, use_fl=args.use_fl)
+                             eos_coef=args.eos_coef, losses=losses, loss_type = args.loss_type, use_fl=args.use_fl, loss_transform=args.loss_transform)
     criterion.to(device)
     postprocessors = {'bbox': PostProcess(args.use_fl)}
     if args.masks:
