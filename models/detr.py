@@ -337,7 +337,6 @@ class SetCriterion(nn.Module):
                 loss_bbox = F.smooth_l1_loss(transformed_src_boxes, transformed_target_boxes, reduction='none') # todo add beta as smooth l1 palatu on beta 1
             elif self.loss_type == 'balanced_l1':
                 loss_bbox = balanced_l1_loss(transformed_src_boxes, transformed_target_boxes, reduction='none')
-
         losses = {}
         losses['loss_bbox'] = loss_bbox.sum() / num_boxes
 

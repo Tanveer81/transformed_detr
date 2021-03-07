@@ -110,7 +110,7 @@ def get_args_parser():
     parser.add_argument('--pre_norm', action='store_true')
     parser.add_argument('--cross_first', action='store_true', help='apply corss attn then self attn on decoder')
     parser.add_argument('--use_proj_in_dec', action='store_true', help='apply reduce projection in decoder layer specific ')
-    parser.add_argument('--use_ms_dec', action='store_true',
+    parser.add_argument('--use_ms_dec',  default='AdaptiveAvgPool2d', type=str,choices=('AdaptiveAvgPool2d', 'AdaptiveMaxPool2d'),
                         help='apply hierrachichial pooling in decoder layer specific ')
     # * Segmentation
     parser.add_argument('--masks', action='store_true',
