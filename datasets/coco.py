@@ -78,10 +78,11 @@ class CocoDetection(torchvision.datasets.CocoDetection):
 
         h, w = image.shape[0], image.shape[1]
         for ix, obj in enumerate(target):
-            masks.append(self.coco.annToMask(obj))
             obj['bbox'][0], obj['bbox'][2] = obj['bbox'][0] / w, (obj['bbox'][0] + obj['bbox'][2]) / w
             obj['bbox'][1], obj['bbox'][3] = obj['bbox'][1] / h, (obj['bbox'][1] + obj['bbox'][3])/ h
-            bboxes.append(obj['bbox'] + [obj['category_id']] + [ix])
+            if obj['bbox'][3]  > obj['bbox'][1] and obj['bbox'][2]  > obj['bbox'][0]:
+                bboxes.append(obj['bbox'] + [obj['category_id']] + [ix])
+                masks.append(self.coco.annToMask(obj))
         # pack outputs into a dict
         output = {
             'image': image,
@@ -214,11 +215,11 @@ def mixed_augmentation(image_set, image_size):
 
         # transform = A.Compose([random_spacial_aug, random_color_aug, normalize],
         #                       bbox_params=A.BboxParams(format='albumentations'))
-        transform = A.Compose([normalize],
+        transform = A.Compose(normalize,
                               bbox_params=A.BboxParams(format='albumentations'))
         return transform
 
-    if image_set == 'val':
+    elif image_set == 'val':
         return A.Compose(normalize,
                          bbox_params=A.BboxParams(format='albumentations'), )
 
