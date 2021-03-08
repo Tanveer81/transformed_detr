@@ -115,10 +115,10 @@ class DETR(nn.Module):
 
         if self.distilled:
             cls_dist_token, pos_token = pos[:, :2, :], pos[:, 2:, :]
-            src_token = src[:,2:,:]
+            src_token = src[:,:,2:,:] if len(src.shape) > 3 else src[:,2:,:]
         elif not self.cls_token:
             cls_token, pos_token = pos[:, :1, :], pos[:, 1:, :]
-            src_token = src[:, 1:, :]
+            src_token = src[:,:,1:,:] if len(src.shape) > 3 else  src[:, 1:, :]
             # pos = self.backbone.transformer.hour_glass(pos[:, 1:, :]) #todo @tanveer later fix for hierchy, mayb not needed
             # pos = torch.cat([token, pos], 1).contiguous()
         # else:  #todo @tanver we dnt need to remove cls token inside vit, do it here and align else here
@@ -554,7 +554,8 @@ def build(args):
                                 attention_type=args.attention_type,
                                 seq_len=int((args.img_height / 16) ** 2),
                                 num_landmarks=args.num_landmarks,
-                                deit = 'Deit' in args.backbone
+                                deit = 'Deit' in args.backbone,
+                                skip_feats = args.skip_feats,
                             )
     # Make detr d_model compatible with deit
     # args.hidden_dim = backbone.embed_dim  # TODO: remove this line
