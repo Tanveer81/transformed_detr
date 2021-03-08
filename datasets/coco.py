@@ -174,14 +174,14 @@ class ConvertCocoPolysToMask(object):
 
         return target
 
-def mixed_augmentation(image_set, image_size):
-    def RandomResize(img, **params):
-        # Bbox are in normalized form [0,1]. So no need to resize bbox.
-        scales = [480, 512, 544, 576, 608, 640, 672, 704, 736, 768, 800]
-        size = random.choice(scales)
-        random_resize = A.Resize(size, size)
-        return random_resize(image=img)['image']
+def RandomResize(img, **params):
+    # Bbox are in normalized form [0,1]. So no need to resize bbox.
+    scales = [480, 512, 544, 576, 608, 640, 672, 704, 736, 768, 800]
+    size = random.choice(scales)
+    random_resize = A.Resize(size, size)
+    return random_resize(image=img)['image']
 
+def mixed_augmentation(image_set, image_size):
     normalize = A.Compose([A.Resize(image_size[0], image_size[1]),  # height first for this library
                            A.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])])
 
@@ -212,9 +212,10 @@ def mixed_augmentation(image_set, image_size):
                             A.LongestMaxSize(p=1), ]
         random_spacial_aug = random.choices([A.NoOp(), random.choice(spacial_aug_list), detr_aug], weights=[0.4, 0, 0.6])[0]
 
-        transform = A.Compose([random_spacial_aug, random_color_aug, normalize],
+        # transform = A.Compose([random_spacial_aug, random_color_aug, normalize],
+        #                       bbox_params=A.BboxParams(format='albumentations'))
+        transform = A.Compose([normalize],
                               bbox_params=A.BboxParams(format='albumentations'))
-
         return transform
 
     if image_set == 'val':
@@ -223,17 +224,26 @@ def mixed_augmentation(image_set, image_size):
 
     raise ValueError(f'unknown {image_set}')
 
-def copy_paste_augmentation(image_set):
+def copy_paste_augmentation(image_set, image_size):
     def toTensor(img, **params):
         return F.to_tensor(img)
+
     if image_set == 'train':
         return A.Compose([
+            A.HorizontalFlip(p=0.5),
+            A.OneOrOther(
+                A.NoOp(),
+                A.Compose([
+                    A.Lambda(p=1, image=RandomResize),
+                    A.RandomSizedBBoxSafeCrop(384, 600, p=1)
+                ])
+            ),
             A.RandomScale(scale_limit=(-0.9, 1), p=1),  # LargeScaleJitter from scale of 0.1 to 2
             A.PadIfNeeded(256, 256, border_mode=0),  # constant 0 border
             A.RandomCrop(256, 256),
             A.HorizontalFlip(p=0.5),
             CopyPaste(blend=True, sigma=1, pct_objects_paste=0.5, p=1),
-            A.Lambda(p=1, image=toTensor)
+            A.Lambda(p=1, image=toTensor),
         ], bbox_params=A.BboxParams(format="albumentations"))
 
     if image_set == 'val':
@@ -253,5 +263,5 @@ def build(image_set, args):
     # Use transformer for ViT
     dataset = CocoDetection(img_folder, ann_file,
                             mixed_augment=mixed_augmentation(image_set, args.img_size),
-                            copy_paste_augment=copy_paste_augmentation(image_set))
+                            copy_paste_augment=copy_paste_augmentation(image_set, args.img_size))
     return dataset
