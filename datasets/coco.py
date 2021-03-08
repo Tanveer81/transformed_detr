@@ -77,22 +77,23 @@ class CocoDetection(torchvision.datasets.CocoDetection):
         bboxes = []
 
         h, w = image.shape[0], image.shape[1]
-        for ix, obj in enumerate(target):
-            obj['bbox'][0], obj['bbox'][2] = obj['bbox'][0] / w, (obj['bbox'][0] + obj['bbox'][2]) / w
-            obj['bbox'][1], obj['bbox'][3] = obj['bbox'][1] / h, (obj['bbox'][1] + obj['bbox'][3])/ h
-            if obj['bbox'][3]  > obj['bbox'][1] and obj['bbox'][2]  > obj['bbox'][0]:
-                bboxes.append(obj['bbox'] + [obj['category_id']] + [ix])
-                masks.append(self.coco.annToMask(obj))
+        target = {'image_id': img_id, 'annotations': target}
+        target = self.prepare(h, w, target)
+        for ix in range(len(target['boxes'])):
+        # for ix, obj in enumerate(target):
+            box = target['boxes'][ix].tolist()
+            mask = target['masks'][ix].numpy()
+            category_id = target['labels'][ix].item()
+            box[0], box[2] = box[0] / w, box[2] / w
+            box[1], box[3] = box[1] / h, box[3]/ h
+            bboxes.append(box + [category_id] + [ix])
+            masks.append(mask)
         # pack outputs into a dict
         output = {
             'image': image,
             'masks': masks,
             'bboxes': bboxes
         }
-
-        target = {'image_id': img_id, 'annotations': target}
-        target = self.prepare(h, w, target)
-
         return self.mixed_augment(**output), target
 
 def convert_coco_poly_to_mask(segmentations, height, width):
