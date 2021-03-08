@@ -164,7 +164,7 @@ class DETR(nn.Module):
                 tmp = self.bbox_embed[lvl](hs[lvl])
 
                 if lvl != 0:
-                    reference = outputs_coords[-1].detach() # no backprop
+                    reference = outputs_coords[-1]#.detach() # no backprop
                     reference = inverse_sigmoid(reference)
                     tmp += reference
 
