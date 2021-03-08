@@ -77,22 +77,20 @@ class CocoDetection(torchvision.datasets.CocoDetection):
         bboxes = []
 
         h, w = image.shape[0], image.shape[1]
-
-        target = {'image_id': img_id, 'annotations': target}
-        target = self.prepare(h, w, target)
-
         for ix, obj in enumerate(target):
             masks.append(self.coco.annToMask(obj))
-            obj['bbox'][0], obj['bbox'][2] = obj['bbox'][0] / w, obj['bbox'][2] / w
-            obj['bbox'][1], obj['bbox'][3] = obj['bbox'][1] / h, obj['bbox'][3]/ h
+            obj['bbox'][0], obj['bbox'][2] = obj['bbox'][0] / w, (obj['bbox'][0] + obj['bbox'][2]) / w
+            obj['bbox'][1], obj['bbox'][3] = obj['bbox'][1] / h, (obj['bbox'][1] + obj['bbox'][3])/ h
             bboxes.append(obj['bbox'] + [obj['category_id']] + [ix])
-
         # pack outputs into a dict
         output = {
             'image': image,
             'masks': masks,
             'bboxes': bboxes
         }
+
+        target = {'image_id': img_id, 'annotations': target}
+        target = self.prepare(h, w, target)
 
         return self.mixed_augment(**output), target
 
