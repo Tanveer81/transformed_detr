@@ -240,11 +240,11 @@ def copy_paste_augmentation(image_set, image_size):
                     A.RandomSizedBBoxSafeCrop(384, 600, p=1)
                 ])
             ),
-            A.RandomScale(scale_limit=(-0.9, 1), p=1),  # LargeScaleJitter from scale of 0.1 to 2
-            A.PadIfNeeded(256, 256, border_mode=0),  # constant 0 border
-            A.RandomCrop(256, 256),
-            A.HorizontalFlip(p=0.5),
-            CopyPaste(blend=True, sigma=1, pct_objects_paste=0.5, p=1),
+            # A.RandomScale(scale_limit=(-0.9, 1), p=1),  # LargeScaleJitter from scale of 0.1 to 2
+            # A.PadIfNeeded(256, 256, border_mode=0),  # constant 0 border
+            # A.RandomCrop(256, 256),
+            # A.HorizontalFlip(p=0.5),
+            CopyPaste(blend=True, sigma=1, pct_objects_paste=0.5, p=0.5),
             A.Lambda(p=1, image=toTensor),
         ], bbox_params=A.BboxParams(format="albumentations"))
 
