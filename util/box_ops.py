@@ -86,3 +86,19 @@ def masks_to_boxes(masks):
     y_min = y_mask.masked_fill(~(masks.bool()), 1e8).flatten(1).min(-1)[0]
 
     return torch.stack([x_min, y_min, x_max, y_max], 1)
+
+
+def bbox_trnsfrm(src_boxes, target_boxes, loss_transform='sqrt'):
+    # make a new copy of the src and target bboxes
+    transformed_src_boxes = src_boxes.detach().clone()
+    transformed_target_boxes = target_boxes.detach().clone()
+    if loss_transform == 'sqrt':
+        # sqrt only the height and width to emphasize small objects more
+        transformed_src_boxes[:, 2:4] = torch.sqrt(transformed_src_boxes[:, 2:4])
+        transformed_target_boxes[:, 2:4] = torch.sqrt(transformed_target_boxes[:, 2:4])
+    elif loss_transform == 'log':
+        # sqrt only the height and width to emphasize small objects more
+        transformed_src_boxes[:, 2:4] = torch.log(transformed_src_boxes[:, 2:4])
+        transformed_target_boxes[:, 2:4] = torch.log(transformed_target_boxes[:, 2:4])
+
+    return transformed_src_boxes, transformed_target_boxes

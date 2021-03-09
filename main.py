@@ -110,7 +110,7 @@ def get_args_parser():
     parser.add_argument('--pre_norm', action='store_true')
     parser.add_argument('--cross_first', action='store_true', help='apply corss attn then self attn on decoder')
     parser.add_argument('--use_proj_in_dec', action='store_true', help='apply reduce projection in decoder layer specific ')
-    parser.add_argument('--use_ms_dec',  default='AdaptiveAvgPool2d', type=str,choices=('AdaptiveAvgPool2d', 'AdaptiveMaxPool2d'),
+    parser.add_argument('--use_ms_dec',  default='AdaptiveAvgPool2d', type=str,choices=('AdaptiveAvgPool2d', 'AdaptiveMaxPool2d','None'),
                         help='apply hierrachichial pooling in decoder layer specific ')
     # * Segmentation
     parser.add_argument('--masks', action='store_true',
@@ -119,7 +119,7 @@ def get_args_parser():
     # Loss
     parser.add_argument('--no_aux_loss', dest='aux_loss', action='store_false',
                         help="Disables auxiliary decoding losses (loss at each layer)")
-    parser.add_argument('--loss_type', default='l1', type=str, choices=('l1', 'smooth_l1', 'balanced_l1'))
+    parser.add_argument('--loss_type', default='l1', type=str, choices=('l1', 'smooth_l1', 'balanced_l1','mse_sigmoid'))
     parser.add_argument('--loss_transform', default='sqrt', type=str, choices=('sqrt', 'log','None'))
     parser.add_argument('--use_fl', action='store_true', help='focal loss for object cls')
     # * Matcher
