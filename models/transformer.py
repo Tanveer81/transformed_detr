@@ -44,9 +44,9 @@ class Transformer(nn.Module):
 
     def forward(self, src, mask, query_embed, pos_embed):
         # If ViT is used then src shape is (N,C,HW)
-        bs, hw, c = src.shape
-        h = w = int(math.sqrt(hw))
-        src = src.permute(1, 0, 2)
+        bs, hw, c = src.shape[1:] if len(src.shape) > 3 else src.shape
+        #h = w = int(math.sqrt(hw))
+        src = src.permute(0,2, 1, 3) if len(src.shape) > 3 else src.permute(1, 0, 2)
         pos_embed = pos_embed.permute(1, 0, 2)
 
         query_embed = query_embed.unsqueeze(1).repeat(1, bs, 1)
@@ -91,8 +91,13 @@ class TransformerDecoder(nn.Module):
                 query_pos: Optional[Tensor] = None):
         output = tgt
         intermediate = []
-        for layer in self.layers:
-            output = layer(output, memory, tgt_mask=tgt_mask,
+        for i, layer in enumerate(self.layers):
+            if len(memory.shape)>3: #for features coming from lower label
+                # todo harcoded for skip feats, 2,5,8 and rest process final layer
+                layer_wise_enc = memory[i if i <3 else 3,:,:,:]
+            else:
+                layer_wise_enc = memory
+            output = layer(output, layer_wise_enc, tgt_mask=tgt_mask,
                            memory_mask=memory_mask,
                            tgt_key_padding_mask=tgt_key_padding_mask,
                            memory_key_padding_mask=memory_key_padding_mask,
@@ -147,7 +152,7 @@ class TransformerDecoderLayer(nn.Module):
         self.drop_path = DropPath(drop_path) if drop_path > 0. else nn.Identity()
         self.layer_number = layer_num
 
-        if hierarchical_pool is not None and pool_size[layer_num] is not None:
+        if hierarchical_pool !='None' and pool_size[layer_num] is not None:
             self.pool =  eval("nn.{}(({},{}))".format(hierarchical_pool,pool_size[layer_num],pool_size[layer_num]))
 
     def with_pos_embed(self, tensor, pos: Optional[Tensor]):

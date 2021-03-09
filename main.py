@@ -55,10 +55,10 @@ def get_args_parser():
                         help="Number of encoding layers in the transformer")
     parser.add_argument('--include_class_token', default=False, action='store_true')
     parser.add_argument("--skip_connection", nargs="*", type=int, default=list(range(0,12)), help="list of index where skip conn will be made")
-    # parser.add_argument('--skip_connection', default=False, action='store_true')
+    parser.add_argument("--skip_feats", action='store_true', default=False, help="accumulate skip conn feats and send to decoder"),
     parser.add_argument('--hierarchy', default=False, action='store_true')
     parser.add_argument('--only_weight', action='store_true', help='used for coco trainined detector')
-    parser.add_argument('--pool', default='max', type=str, choices=('max', 'avg'))
+    parser.add_argument('--pool', default='max', type=str, choices=('max', 'avg'))# remove later on
     parser.add_argument('--small_augment', default=False, action='store_true')
     parser.add_argument('--mixed_augment', default=False, action='store_true')
     parser.add_argument('--opt', default='AdamW', type=str, choices=('AdamW', 'SGD'))
@@ -66,7 +66,7 @@ def get_args_parser():
                         help='Drop path rate (default: 0.)')
     parser.add_argument('--print_details', default=False, action='store_true')
     parser.add_argument("--cuda_visible_device", nargs="*", type=int, default=None,
-                        help="list of index where skip conn will be made")
+                        help="list of cuda visible devices")
     parser.add_argument('--attention_type', default='classical', type=str,
                         choices=['classical', 'nystrom', 'linear'])
     parser.add_argument('--num_landmarks', default=192, type=int, help='landmark size')
@@ -110,7 +110,7 @@ def get_args_parser():
     parser.add_argument('--pre_norm', action='store_true')
     parser.add_argument('--cross_first', action='store_true', help='apply corss attn then self attn on decoder')
     parser.add_argument('--use_proj_in_dec', action='store_true', help='apply reduce projection in decoder layer specific ')
-    parser.add_argument('--use_ms_dec',  default='AdaptiveAvgPool2d', type=str,choices=('AdaptiveAvgPool2d', 'AdaptiveMaxPool2d'),
+    parser.add_argument('--use_ms_dec',  default='AdaptiveAvgPool2d', type=str,choices=('AdaptiveAvgPool2d', 'AdaptiveMaxPool2d','None'),
                         help='apply hierrachichial pooling in decoder layer specific ')
     # * Segmentation
     parser.add_argument('--masks', action='store_true',
@@ -119,7 +119,7 @@ def get_args_parser():
     # Loss
     parser.add_argument('--no_aux_loss', dest='aux_loss', action='store_false',
                         help="Disables auxiliary decoding losses (loss at each layer)")
-    parser.add_argument('--loss_type', default='l1', type=str, choices=('l1', 'smooth_l1', 'balanced_l1'))
+    parser.add_argument('--loss_type', default='l1', type=str, choices=('l1', 'smooth_l1', 'balanced_l1','mse_sigmoid'))
     parser.add_argument('--loss_transform', default='sqrt', type=str, choices=('sqrt', 'log','None'))
     parser.add_argument('--use_fl', action='store_true', help='focal loss for object cls')
     # * Matcher

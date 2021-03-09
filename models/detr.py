@@ -24,7 +24,7 @@ from .segmentation import (DETRsegm, PostProcessPanoptic, PostProcessSegm,
                            dice_loss, sigmoid_focal_loss)
 from .transformer import build_transformer
 from .pytorch_pretrained_vit.utils import load_pretrained_weights
-from models.pytorch_pretrained_vit.model import ViT
+from util.box_ops import bbox_trnsfrm
 # from models.pytorch_pretrained_vit.model import hierarchicalViT
 from models.pytorch_pretrained_vit.configs import PRETRAINED_MODELS
 from .pytorch_pretrained_vit.utils import non_strict_load_state_dict
@@ -115,10 +115,10 @@ class DETR(nn.Module):
 
         if self.distilled:
             cls_dist_token, pos_token = pos[:, :2, :], pos[:, 2:, :]
-            src_token = src[:,2:,:]
+            src_token = src[:,:,2:,:] if len(src.shape) > 3 else src[:,2:,:]
         elif not self.cls_token:
             cls_token, pos_token = pos[:, :1, :], pos[:, 1:, :]
-            src_token = src[:, 1:, :]
+            src_token = src[:,:,1:,:] if len(src.shape) > 3 else  src[:, 1:, :]
             # pos = self.backbone.transformer.hour_glass(pos[:, 1:, :]) #todo @tanveer later fix for hierchy, mayb not needed
             # pos = torch.cat([token, pos], 1).contiguous()
         # else:  #todo @tanver we dnt need to remove cls token inside vit, do it here and align else here
@@ -322,21 +322,16 @@ class SetCriterion(nn.Module):
         if self.loss_type == 'l1':
             loss_bbox = F.l1_loss(src_boxes, target_boxes, reduction='none')
         else:
-            # make a new copy of the src and target bboxes
-            transformed_src_boxes = src_boxes.detach().clone()
-            transformed_target_boxes = target_boxes.detach().clone()
-            if self.loss_transform =='sqrt':
-                # sqrt only the height and width to emphasize small objects more
-                transformed_src_boxes[:, 2:4] = torch.sqrt(transformed_src_boxes[:, 2:4])
-                transformed_target_boxes[:, 2:4] = torch.sqrt(transformed_target_boxes[:, 2:4])
-            elif self.loss_transform =='log':
-                # sqrt only the height and width to emphasize small objects more
-                transformed_src_boxes[:, 2:4] = torch.log(transformed_src_boxes[:, 2:4])
-                transformed_target_boxes[:, 2:4] = torch.log(transformed_target_boxes[:, 2:4])
+            transformed_src_boxes, transformed_target_boxes = bbox_trnsfrm(src_boxes, target_boxes,loss_transform=self.loss_transform)
             if self.loss_type == 'smooth_l1':
                 loss_bbox = F.smooth_l1_loss(transformed_src_boxes, transformed_target_boxes, reduction='none') # todo add beta as smooth l1 palatu on beta 1
             elif self.loss_type == 'balanced_l1':
                 loss_bbox = balanced_l1_loss(transformed_src_boxes, transformed_target_boxes, reduction='none')
+            elif self.loss_type == 'mse_sigmoid': #todo in yolov4 they reduced by sum
+                loss_wh = F.mse_loss(transformed_src_boxes[:,2:],transformed_target_boxes[:,2:], reduce=False)
+                loss_xy = F.binary_cross_entropy(transformed_src_boxes[:,:2],transformed_target_boxes[:,:2], reduce=False)
+                loss_bbox = torch.cat((loss_xy,loss_wh),dim=1)
+
         losses = {}
         losses['loss_bbox'] = loss_bbox.sum() / num_boxes
 
@@ -554,7 +549,8 @@ def build(args):
                                 attention_type=args.attention_type,
                                 seq_len=int((args.img_height / 16) ** 2),
                                 num_landmarks=args.num_landmarks,
-                                deit = 'Deit' in args.backbone
+                                deit = 'Deit' in args.backbone,
+                                skip_feats = args.skip_feats,
                             )
     # Make detr d_model compatible with deit
     # args.hidden_dim = backbone.embed_dim  # TODO: remove this line
