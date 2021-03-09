@@ -131,7 +131,8 @@ def load_pretrained_weights(
 
     # if model.distilled:
     #     state_dict['positional_embedding.pos_embedding'] = state_dict['positional_embedding.pos_embedding'][:]
-
+    del state_dict['norm.weight']
+    del state_dict['norm.bias']
         # Load state dict
     ret = model.load_state_dict(state_dict, strict=False)
     if strict:
