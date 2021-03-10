@@ -328,7 +328,8 @@ def main(args):
             model, criterion, postprocessors, data_loader_val, base_ds, device, args.output_dir,
             args.overfit_one_batch, args.print_freq, args.print_details
         )
-        ap_box = coco_evaluator.coco_eval['bbox'].stats.tolist()[0]  # take AP Box for reducing lr
+        # ap_box = coco_evaluator.coco_eval['bbox'].stats.tolist()[0]  # take AP Box for reducing lr
+        ap_box = coco_evaluator.coco_eval['bbox'].stats.tolist()[3]  # take AP small Box for reducing lr
         lr_scheduler.step(ap_box)
         log_stats = {**{f'train_{k}': v for k, v in train_stats.items()},
                      **{f'test_{k}': v for k, v in test_stats.items()},
