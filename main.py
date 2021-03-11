@@ -162,8 +162,8 @@ def get_args_parser():
                         help='number of distributed processes')
     parser.add_argument('--dist_url', default='env://',
                         help='url used to set up distributed training')
-
-
+    parser.add_argument("--pool_size", nargs="*", type=int, default=[None, None, 24,24,14,14],
+                        help="list of index where skip conn will be made")
     return parser
 
 

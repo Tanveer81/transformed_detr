@@ -22,15 +22,19 @@ class Transformer(nn.Module):
 
     def __init__(self, d_model=512, nhead=8, num_decoder_layers=6, dim_feedforward=2048, dropout=0.1,
                  activation="relu", normalize_before=False, return_intermediate_dec=False,
-                  backbone_name = 'resnet', cross_first=False, drop_path=0, use_proj_in_dec=False, bkbone_dim=768, hierarchical_pool=False):
+                  backbone_name = 'resnet', cross_first=False, drop_path=0, use_proj_in_dec=False,
+                 bkbone_dim=768, hierarchical_pool=False, pool_size=[None, None, 24,24,14,14]):
         super().__init__()
 
         # In case of ViT backbone, self.backbone changes to "ViT" from detr
         self.backbone = backbone_name
 
         decoder_norm = nn.LayerNorm(d_model)
-        self.decoder = TransformerDecoder(num_decoder_layers, decoder_norm, return_intermediate_dec, drop_path, d_model,nhead, dim_feedforward,
-                                           dropout, activation, normalize_before, cross_first, use_proj_in_dec, bkbone_dim, hierarchical_pool)
+        self.decoder = TransformerDecoder(num_decoder_layers, decoder_norm, return_intermediate_dec,
+                                          drop_path, d_model,nhead, dim_feedforward,
+                                          dropout, activation, normalize_before, cross_first,
+                                          use_proj_in_dec, bkbone_dim, hierarchical_pool,
+                                          pool_size=pool_size)
 
         self._reset_parameters()
         self.dim_feedforward = dim_feedforward
@@ -61,13 +65,12 @@ class TransformerDecoder(nn.Module):
 
     def __init__(self, num_layers, norm=None, return_intermediate=False, drop_path=0, d_model=512,
                  nhead=8, dim_feedforward=2048, dropout=0.1, activation="relu", normalize_before=False, cross_first=False, use_proj_in_dec=False,
-                 bkbone_dim=768, hierarchical_pool=None, reduce_backbone=None, pool_size=None):
+                 bkbone_dim=768, hierarchical_pool=None, reduce_backbone=None, pool_size=[None, None, 24,24,14,14]):
         super().__init__()
         if d_model!=bkbone_dim: # reduce the prjection decoder layer wise
             reduce_backbone = nn.Linear(bkbone_dim, d_model)
             torch.nn.init.xavier_uniform_(reduce_backbone.weight)
         #use multiple pool for multiscale feature map
-        pool_size = [None,None,24,24,14,14]
         assert len(pool_size)==num_layers
         # drop path rate
         dpr = [x.item() for x in torch.linspace(0, drop_path, num_layers)]  # stochastic depth decay rule
@@ -268,7 +271,8 @@ def build_transformer(args, bkbone_dim=768):
         drop_path = args.drop_path,
         use_proj_in_dec=args.use_proj_in_dec,
         bkbone_dim=bkbone_dim,
-        hierarchical_pool = args.use_ms_dec
+        hierarchical_pool = args.use_ms_dec,
+        pool_size=args.pool_size
     )
 
     return transformer
