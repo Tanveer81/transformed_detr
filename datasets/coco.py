@@ -238,9 +238,10 @@ def copy_paste_augmentation(image_set, image_size):
                 A.Compose([
                     A.Lambda(p=1, image=RandomResize),
                     A.RandomSizedBBoxSafeCrop(384, 600, p=1)
-                ])
+                ]),
+                p = 0.3 # probability of noop: deit_592_384_skp_feats_mse_sigmoid_high_aug
             ),
-            # A.RandomScale(scale_limit=(-0.9, 1), p=1),  # LargeScaleJitter from scale of 0.1 to 2
+            A.RandomScale(scale_limit=(-0.9, 1), p=0.5),  # LargeScaleJitter from scale of 0.1 to 2
             # A.PadIfNeeded(256, 256, border_mode=0),  # constant 0 border
             # A.RandomCrop(256, 256),
             # A.HorizontalFlip(p=0.5),
