@@ -28,6 +28,8 @@ from util.box_ops import bbox_trnsfrm
 # from models.pytorch_pretrained_vit.model import hierarchicalViT
 from models.pytorch_pretrained_vit.configs import PRETRAINED_MODELS
 from .pytorch_pretrained_vit.utils import non_strict_load_state_dict
+from mmdet.models.losses import CIoULoss
+from util import box_ops
 
 def _get_clones(module, N):
     return nn.ModuleList([copy.deepcopy(module) for i in range(N)])
@@ -225,6 +227,8 @@ class SetCriterion(nn.Module):
         empty_weight = torch.ones(self.num_classes + 1)
         empty_weight[-1] = self.eos_coef
         self.register_buffer('empty_weight', empty_weight)
+        if self.loss_type == 'ciou':
+            self.ciou_loss = CIoULoss()
 
     def loss_labels(self, outputs, targets, indices, num_boxes, log=True):
         """Classification loss (NLL)
@@ -319,26 +323,31 @@ class SetCriterion(nn.Module):
         src_boxes = outputs['pred_boxes'][idx]
         target_boxes = torch.cat([t['boxes'][i] for t, (_, i) in zip(targets, indices)], dim=0)
 
-        if self.loss_type == 'l1':
-            loss_bbox = F.l1_loss(src_boxes, target_boxes, reduction='none')
-        else:
-            transformed_src_boxes, transformed_target_boxes = bbox_trnsfrm(src_boxes, target_boxes,loss_transform=self.loss_transform)
-            if self.loss_type == 'smooth_l1':
-                loss_bbox = F.smooth_l1_loss(transformed_src_boxes, transformed_target_boxes, reduction='none') # todo add beta as smooth l1 palatu on beta 1
-            elif self.loss_type == 'balanced_l1':
-                loss_bbox = balanced_l1_loss(transformed_src_boxes, transformed_target_boxes, reduction='none')
-            elif self.loss_type == 'mse_sigmoid': #todo in yolov4 they reduced by sum
-                loss_wh = F.mse_loss(transformed_src_boxes[:,2:],transformed_target_boxes[:,2:], reduce=False)
-                loss_xy = F.binary_cross_entropy(transformed_src_boxes[:,:2],transformed_target_boxes[:,:2], reduce=False)
-                loss_bbox = torch.cat((loss_xy,loss_wh),dim=1)
-
         losses = {}
-        losses['loss_bbox'] = loss_bbox.sum() / num_boxes
+        if self.loss_type == 'ciou':
+            losses['loss_bbox'] = self.ciou_loss(box_ops.box_cxcywh_to_xyxy(src_boxes), box_ops.box_cxcywh_to_xyxy(target_boxes))
+            losses['loss_giou'] = 0
+        else:
+            if self.loss_type == 'l1':
+                loss_bbox = F.l1_loss(src_boxes, target_boxes, reduction='none')
+            else:
+                transformed_src_boxes, transformed_target_boxes = bbox_trnsfrm(src_boxes, target_boxes,loss_transform=self.loss_transform)
+                if self.loss_type == 'smooth_l1':
+                    loss_bbox = F.smooth_l1_loss(transformed_src_boxes, transformed_target_boxes, reduction='none') # todo add beta as smooth l1 palatu on beta 1
+                elif self.loss_type == 'balanced_l1':
+                    loss_bbox = balanced_l1_loss(transformed_src_boxes, transformed_target_boxes, reduction='none')
+                elif self.loss_type == 'mse_sigmoid': #todo in yolov4 they reduced by sum
+                    loss_wh = F.mse_loss(transformed_src_boxes[:,2:],transformed_target_boxes[:,2:], reduce=False)
+                    loss_xy = F.binary_cross_entropy(transformed_src_boxes[:,:2],transformed_target_boxes[:,:2], reduce=False)
+                    loss_bbox = torch.cat((loss_xy,loss_wh),dim=1)
 
-        loss_giou = 1 - torch.diag(box_ops.generalized_box_iou(
-            box_ops.box_cxcywh_to_xyxy(src_boxes),
-            box_ops.box_cxcywh_to_xyxy(target_boxes)))
-        losses['loss_giou'] = loss_giou.sum() / num_boxes
+            losses['loss_bbox'] = loss_bbox.sum() / num_boxes
+
+            loss_giou = 1 - torch.diag(box_ops.generalized_box_iou(
+                box_ops.box_cxcywh_to_xyxy(src_boxes),
+                box_ops.box_cxcywh_to_xyxy(target_boxes)))
+            losses['loss_giou'] = loss_giou.sum() / num_boxes
+
         return losses
 
     def loss_masks(self, outputs, targets, indices, num_boxes):
