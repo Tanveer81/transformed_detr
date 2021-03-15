@@ -114,7 +114,7 @@ def get_args_parser():
     parser.add_argument('--use_proj_in_dec', action='store_true', help='apply reduce projection in decoder layer specific ')
     parser.add_argument('--use_ms_dec',  default='AdaptiveAvgPool2d', type=str,choices=('AdaptiveAvgPool2d', 'AdaptiveMaxPool2d','None'),
                         help='apply hierrachichial pooling in decoder layer specific ')
-    parser.add_argument('--use_ms_enc',  default='AdaptiveAvgPool2d', type=str,choices=('AdaptiveAvgPool2d', 'AdaptiveMaxPool2d','None'),
+    parser.add_argument('--use_ms_enc',  default='None', type=str,choices=('AdaptiveAvgPool2d', 'AdaptiveMaxPool2d','None'),
                         help='apply hierrachichial pooling in encoder layer specific ')
     # * Segmentation
     parser.add_argument('--masks', action='store_true',
@@ -168,7 +168,7 @@ def get_args_parser():
                         help='url used to set up distributed training')
     parser.add_argument("--pool_size", nargs="*", type=int, default=[None, None, 24,24,14,14],
                         help="list of index where skip conn will be made")
-    parser.add_argument("--enc_pool_size", nargs="*", type=int, default=[12, 12, 12, 12, 24, 24, 24, 24, None, None, None, None],
+    parser.add_argument("--enc_pool_size", nargs="*", type=int, default=[6, 6, 6, 6, 12, 12, 12, 12, None, None, None, None],
                         help="list of index where skip conn will be made")
     return parser
 
@@ -178,7 +178,7 @@ def main(args):
     # wandb.login()
     if args.cuda_visible_device is not None:
         os.environ["CUDA_VISIBLE_DEVICES"] = ','.join(map(str, args.cuda_visible_device))
-    print(os.environ["CUDA_VISIBLE_DEVICES"])
+    # print(os.environ["CUDA_VISIBLE_DEVICES"])
     utils.init_distributed_mode(args)
     print("git:\n  {}\n".format(utils.get_sha()))
 
@@ -198,7 +198,6 @@ def main(args):
 
     model_without_ddp = model
     if args.distributed:
-
         model = torch.nn.parallel.DistributedDataParallel(model, device_ids=[args.gpu],) #find_unused_parameters=True
         model_without_ddp = model.module
     n_parameters = sum(p.numel() for p in model.parameters() if p.requires_grad)
