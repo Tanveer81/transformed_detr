@@ -571,6 +571,8 @@ def build(args):
                                 num_landmarks=args.num_landmarks,
                                 deit = 'Deit' in args.backbone,
                                 skip_feats = args.skip_feats,
+                                use_ms_enc = args.use_ms_enc,
+                                enc_pool_size = args.enc_pool_size,
                             )
     # Make detr d_model compatible with deit
     # args.hidden_dim = backbone.embed_dim  # TODO: remove this line
