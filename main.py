@@ -20,7 +20,7 @@ from models import build_model
 from models.pytorch_pretrained_vit.configs import PRETRAINED_MODELS
 from models.pytorch_pretrained_vit.utils import resize_positional_embedding_, maybe_print
 from tensorboardX import SummaryWriter
-
+import math
 # torch.multiprocessing.set_sharing_strategy('file_system')
 # import resource
 # rlimit = resource.getrlimit(resource.RLIMIT_NOFILE)
@@ -82,6 +82,8 @@ def get_args_parser():
     parser.add_argument('--print_freq', default=500000, type=int)
     parser.add_argument('--clip_max_norm', default=0.1, type=float,
                         help='gradient clipping max norm')
+    parser.add_argument('--lr_scheduler', default='reduce_lr', type=str,
+                        choices=('reduce_lr', 'cosine'))
 
     # Model parameters
     parser.add_argument('--frozen_weights', type=str, default=None,
@@ -214,8 +216,14 @@ def main(args):
         print("Train with SGD")
         optimizer = torch.optim.SGD(param_dicts, lr=args.lr, weight_decay=args.weight_decay)
     #lr_scheduler = torch.optim.lr_scheduler.StepLR(optimizer, args.lr_drop)
-    lr_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'max', patience=2, factor=0.9,
-                                   verbose=True, threshold=0.001, threshold_mode='abs', cooldown=1)
+    if args.lr_scheduler == 'cosine':
+        # Scheduler https://arxiv.org/pdf/1812.01187.pdf
+        lf = lambda x: (((1 + math.cos(
+            x * math.pi / args.epochs)) / 2) ** 1.0) * 0.8 + 0.2  # cosine
+        lr_scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer, lr_lambda=lf)
+    else:
+        lr_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'max', patience=2, factor=0.9,
+                                       verbose=True, threshold=0.001, threshold_mode='abs', cooldown=1)
 
     dataset_train = build_dataset(image_set='train', args=args)
 
