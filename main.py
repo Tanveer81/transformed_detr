@@ -291,6 +291,7 @@ def main(args):
 
     # Create tensorboard writer
     if os.environ.get("RANK", "0") == "0":
+        print(args)
         writer = SummaryWriter(comment=args.experiment_name)
 
     # tell wandb to get started
@@ -508,7 +509,6 @@ if __name__ == '__main__':
     #     assert 'deit' in args.pretrain_dir, 'for pretraining with deit please load deit checkpoint'
     args.img_size = (args.img_height, args.img_width)
     args.data_size = (args.data_height, args.data_width)
-    print(args)
     if not args.output_dir:  # create output dir as per experiment name in exp folder
         args.output_dir = './exp/' + args.experiment_name
     Path(args.output_dir).mkdir(parents=True, exist_ok=True)
