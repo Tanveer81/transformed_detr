@@ -121,7 +121,8 @@ def get_args_parser():
     # Loss
     parser.add_argument('--no_aux_loss', dest='aux_loss', action='store_false',
                         help="Disables auxiliary decoding losses (loss at each layer)")
-    parser.add_argument('--loss_type', default='l1', type=str, choices=('l1', 'smooth_l1', 'balanced_l1','mse_sigmoid', 'ciou'))
+    parser.add_argument('--bbox_loss_type', default='l1', type=str, choices=('l1', 'smooth_l1','balanced_l1','mse_sigmoid', 'none'))
+    parser.add_argument('--iou_loss_type', default='giou', type=str, choices=('giou', 'ciou'))
     parser.add_argument('--loss_transform', default='sqrt', type=str, choices=('sqrt', 'log','None'))
     parser.add_argument('--use_fl', action='store_true', help='focal loss for object cls')
     # * Matcher
