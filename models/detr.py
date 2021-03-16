@@ -233,7 +233,7 @@ class SetCriterion(nn.Module):
         if self.iou_loss_type == 'ciou':
             self.ciou_loss = CIoULoss(reduction='none')
         if self.label_smoothing:
-            self.label_smoothing_loss = LabelSmoothingLoss(label_smoothing = 0.1, tgt_vocab_size = num_classes)
+            self.label_smoothing_loss = LabelSmoothingLoss(classes=num_classes, smoothing = 0.1)
 
     def loss_labels(self, outputs, targets, indices, num_boxes, log=True):
         """Classification loss (NLL)
