@@ -127,6 +127,7 @@ def get_args_parser():
     parser.add_argument('--iou_loss_type', default='giou', type=str, choices=('giou', 'ciou'))
     parser.add_argument('--loss_transform', default='sqrt', type=str, choices=('sqrt', 'log','None'))
     parser.add_argument('--use_fl', action='store_true', help='focal loss for object cls')
+    parser.add_argument('--label_smoothing', action='store_true', help='focal loss for object cls')
     # * Matcher
     parser.add_argument('--set_cost_class', default=1, type=float,
                         help="Class coefficient in the matching cost") #todo for focal loss use 2
@@ -169,7 +170,7 @@ def get_args_parser():
                         help='url used to set up distributed training')
     parser.add_argument("--pool_size", nargs="*", type=int, default=[None, None, 24,24,14,14],
                         help="list of index where skip conn will be made")
-    parser.add_argument("--enc_pool_size", nargs="*", type=int, default=[6, 6, 6, 6, 12, 12, 12, 12, None, None, None, None],
+    parser.add_argument("--enc_pool_size", nargs="*", type=int, default=[12, 12, 12, 12, 24, 24, 24, 24, None, None, None, None],
                         help="list of index where skip conn will be made")
     return parser
 

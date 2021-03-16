@@ -30,6 +30,7 @@ from models.pytorch_pretrained_vit.configs import PRETRAINED_MODELS
 from .pytorch_pretrained_vit.utils import non_strict_load_state_dict
 from mmdet.models.losses import CIoULoss
 from util import box_ops
+from util.misc import LabelSmoothingLoss
 
 def _get_clones(module, N):
     return nn.ModuleList([copy.deepcopy(module) for i in range(N)])
@@ -205,7 +206,7 @@ class SetCriterion(nn.Module):
         2) we supervise each pair of matched ground-truth / prediction (supervise class and box)
     """
 
-    def __init__(self, num_classes, matcher, weight_dict, eos_coef, losses, bbox_loss_type, iou_loss_type, focal_alpha=0.25, use_fl=False, loss_transform='sqrt'):
+    def __init__(self, num_classes, matcher, weight_dict, eos_coef, losses, bbox_loss_type, iou_loss_type, focal_alpha=0.25, use_fl=False, loss_transform='sqrt', label_smoothing=False):
         """ Create the criterion.
         Parameters:
             num_classes: number of object categories, omitting the special no-object category
@@ -219,6 +220,7 @@ class SetCriterion(nn.Module):
         self.bbox_loss_type = bbox_loss_type
         self.iou_loss_type = iou_loss_type
         self.use_fl = use_fl
+        self.label_smoothing = label_smoothing
         self.num_classes = num_classes
         self.matcher = matcher
         self.weight_dict = weight_dict
@@ -230,6 +232,8 @@ class SetCriterion(nn.Module):
         self.register_buffer('empty_weight', empty_weight)
         if self.iou_loss_type == 'ciou':
             self.ciou_loss = CIoULoss(reduction='none')
+        if self.label_smoothing:
+            self.label_smoothing_loss = LabelSmoothingLoss(label_smoothing = 0.1, tgt_vocab_size = num_classes)
 
     def loss_labels(self, outputs, targets, indices, num_boxes, log=True):
         """Classification loss (NLL)
@@ -247,10 +251,10 @@ class SetCriterion(nn.Module):
             target_classes_onehot = torch.zeros([src_logits.shape[0], src_logits.shape[1], src_logits.shape[2] + 1],
                                                 dtype=src_logits.dtype, layout=src_logits.layout, device=src_logits.device)
             target_classes_onehot.scatter_(2, target_classes.unsqueeze(-1), 1)
-
             target_classes_onehot = target_classes_onehot[:, :, :-1]
-            loss_ce =  sigmoid_focal_loss(src_logits, target_classes_onehot, num_boxes, alpha=self.focal_alpha, gamma=2) * \
-            src_logits.shape[1]
+            loss_ce =  sigmoid_focal_loss(src_logits, target_classes_onehot, num_boxes, alpha=self.focal_alpha, gamma=2) * src_logits.shape[1]
+        elif self.label_smoothing:
+            loss_ce = self.label_smoothing_loss(src_logits.transpose(1, 2), target_classes)
         else:
             loss_ce = F.cross_entropy(src_logits.transpose(1, 2), target_classes, self.empty_weight)
         losses = {'loss_ce': loss_ce}
@@ -662,7 +666,10 @@ def build(args):
     if args.masks:
         losses += ["masks"]
     criterion = SetCriterion(num_classes, matcher=matcher, weight_dict=weight_dict,
-                             eos_coef=args.eos_coef, losses=losses, bbox_loss_type = args.bbox_loss_type, iou_loss_type = args.iou_loss_type, use_fl=args.use_fl, loss_transform=args.loss_transform)
+                             eos_coef=args.eos_coef, losses=losses, bbox_loss_type = args.bbox_loss_type,
+                             iou_loss_type = args.iou_loss_type, use_fl=args.use_fl,
+                             loss_transform=args.loss_transform,
+                             label_smoothing = args.label_smoothing)
     criterion.to(device)
     postprocessors = {'bbox': PostProcess(args.use_fl)}
     if args.masks:
