@@ -82,7 +82,16 @@ class DETR(nn.Module):
             nn.init.constant_(self.bbox_embed[0].layers[-1].bias.data[2:], -2.0)
             # hack implementation for iterative bounding box refinement
             # self.transformer.decoder.bbox_embed = self.bbox_embed
-        if fl: #for focal loss
+            if fl:  # for focal loss
+                prior_prob = 0.01
+                bias_value = -math.log((1 - prior_prob) / prior_prob)
+                for module in self.class_embed:
+                    module.bias.data = torch.ones(num_classes + 1) * bias_value
+                for module in self.bbox_embed:
+                    nn.init.constant_(module.layers[-1].weight.data, 0)
+                    nn.init.constant_(module.layers[-1].bias.data, 0)
+
+        if fl and not with_box_refine: #for focal loss
             prior_prob = 0.01
             bias_value = -math.log((1 - prior_prob) / prior_prob)
             self.class_embed.bias.data = torch.ones(num_classes+1) * bias_value
@@ -233,7 +242,7 @@ class SetCriterion(nn.Module):
         if self.iou_loss_type == 'ciou':
             self.ciou_loss = CIoULoss(reduction='none')
         if self.label_smoothing:
-            self.label_smoothing_loss = LabelSmoothingLoss(classes=num_classes, smoothing = 0.1)
+            self.label_smoothing_loss = LabelSmoothingLoss(classes=num_classes, smoothing=0.1)
 
     def loss_labels(self, outputs, targets, indices, num_boxes, log=True):
         """Classification loss (NLL)
