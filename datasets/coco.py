@@ -242,11 +242,11 @@ def copy_paste_augmentation(image_set, image_size):
                 p = 0.3 # probability of noop: deit_592_384_skp_feats_mse_sigmoid_high_aug
             ),
             #color augment
-            A.OneOf([A.RandomBrightnessContrast(), A.RandomBrightnessContrast(contrast_limit=0.),
-                    A.RandomBrightnessContrast(brightness_limit=0.), A.RGBShift(),
-                    A.HueSaturationValue(),
-                    A.ChannelShuffle(), A.CLAHE(), A.RandomGamma(), A.Blur(), A.ToGray(),
-                    A.ToSepia()], p=0.7),
+            # A.OneOf([A.RandomBrightnessContrast(), A.RandomBrightnessContrast(contrast_limit=0.),
+            #         A.RandomBrightnessContrast(brightness_limit=0.), A.RGBShift(),
+            #         A.HueSaturationValue(),
+            #         A.ChannelShuffle(), A.CLAHE(), A.RandomGamma(), A.Blur(), A.ToGray(),
+            #         A.ToSepia()], p=0.7),
             A.RandomScale(scale_limit=(-0.9, 1), p=0.5),  # LargeScaleJitter from scale of 0.1 to 2
             # A.PadIfNeeded(256, 256, border_mode=0),  # constant 0 border
             # A.RandomCrop(256, 256),
