@@ -155,8 +155,8 @@ class TransformerDecoderLayer(nn.Module):
         self.drop_path = DropPath(drop_path) if drop_path > 0. else nn.Identity()
         self.layer_number = layer_num
 
-        if hierarchical_pool !='None' and pool_size[layer_num] is not None:
-            self.pool =  eval("nn.{}(({},{}))".format(hierarchical_pool,pool_size[layer_num],pool_size[layer_num]))
+        if hierarchical_pool !='None' and pool_size[layer_num]!="_":
+            self.pool =  eval("nn.{}(({},{}))".format(hierarchical_pool,int(pool_size[layer_num]),int(pool_size[layer_num])))
 
     def with_pos_embed(self, tensor, pos: Optional[Tensor]):
         if self.use_proj_in_dec and not self.d_model==tensor.shape[-1]:
