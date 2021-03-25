@@ -114,8 +114,14 @@ def get_args_parser():
     parser.add_argument('--use_proj_in_dec', action='store_true', help='apply reduce projection in decoder layer specific ')
     parser.add_argument('--use_ms_dec',  default='AdaptiveAvgPool2d', type=str,choices=('AdaptiveAvgPool2d', 'AdaptiveMaxPool2d','None'),
                         help='apply hierrachichial pooling in decoder layer specific ')
+    parser.add_argument("--pool_size", nargs="*", default=['_', '_', '_', 24, 24, 24],
+                        help="list of index where skip conn will be made")  # type=int,
     parser.add_argument('--use_ms_enc',  default='None', type=str,choices=('AdaptiveAvgPool2d', 'AdaptiveMaxPool2d','None'),
                         help='apply hierrachichial pooling in encoder layer specific ')
+    parser.add_argument("--enc_pool_size", nargs="*",
+                        default=[12, 12, 12, 12, 24, 24, 24, 24, '_', '_', '_', '_'],
+                        help="list of index where skip conn will be made")
+
     # * Segmentation
     parser.add_argument('--masks', action='store_true',
                         help="Train segmentation head if the flag is provided")
@@ -169,10 +175,7 @@ def get_args_parser():
                         help='number of distributed processes')
     parser.add_argument('--dist_url', default='env://',
                         help='url used to set up distributed training')
-    parser.add_argument("--pool_size", nargs="*", type=int, default=[None, None, 24,24,14,14],
-                        help="list of index where skip conn will be made")
-    parser.add_argument("--enc_pool_size", nargs="*", type=int, default=[12, 12, 12, 12, 24, 24, 24, 24, None, None, None, None],
-                        help="list of index where skip conn will be made")
+
     return parser
 
 
