@@ -307,8 +307,11 @@ def copy_paste_class(dataset_class):
 
         img_data, target = self.load_example(idx)
         if self.copy_paste is not None:#train
-            paste_idx = random.randint(0, self.__len__() - 1)
-            paste_img_data, _ = self.load_example(paste_idx)
+            if self.cluster_copy_paste:
+                paste_idx = random.choice(self.cluster_dict[self.id_dict[self.img_id]]).item()
+            else:
+                paste_idx = random.randint(0, self.__len__() - 1)
+            paste_img_data, _ = self.load_example(paste_idx, True)
             for k in list(paste_img_data.keys()):
                 paste_img_data['paste_' + k] = paste_img_data[k]
                 del paste_img_data[k]

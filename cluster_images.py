@@ -122,14 +122,21 @@ def save_cluster_ids():
     clusters = np.load('./exp/clusters.npy', allow_pickle=True)
     all_id = np.load('./exp/all_id.npy', allow_pickle=True)
     cluster_dict = {}
+    id_dict = {}
+
     for i in range(NUM_CLUSTERS):
         cluster_dict[i] = list(all_id[clusters == i].astype(int))
     with open('./exp/cluster_dict.json', 'wb') as fp:
         pickle.dump(cluster_dict, fp, protocol=pickle.HIGHEST_PROTOCOL)
 
+    for id, cluster in zip(all_id, clusters):
+        id_dict[id.astype(int)] = cluster.astype(int)
+    with open('./exp/id_dict.json', 'wb') as fp:
+        pickle.dump(id_dict, fp, protocol=pickle.HIGHEST_PROTOCOL)
+
 if __name__ == '__main__':
-    # create_embedding()
-    # cluster()
+    create_embedding()
+    cluster()
     save_cluster_ids()
 
 

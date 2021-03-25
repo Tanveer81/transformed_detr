@@ -15,6 +15,8 @@ from .copy_paste import copy_paste_class, CopyPaste
 from pycocotools import mask as coco_mask
 from PIL import Image
 import os
+import pickle
+
 SOA_THRESH = 50 * 50
 SOA_PROB = 0.5
 SOA_COPY_TIMES = 2
@@ -50,7 +52,7 @@ def has_valid_annotation(anno):
 
 @copy_paste_class
 class CocoDetection(torchvision.datasets.CocoDetection):
-    def __init__(self, img_folder, ann_file, mixed_augment, copy_paste_augment):
+    def __init__(self, img_folder, ann_file, mixed_augment, copy_paste_augment, cluster_copy_paste):
         super(CocoDetection, self).__init__(img_folder, ann_file, None, None, copy_paste_augment)
         # filter images without detection annotations
         ids = []
@@ -62,13 +64,22 @@ class CocoDetection(torchvision.datasets.CocoDetection):
         self.ids = ids
         self.mixed_augment = mixed_augment
         self.prepare = ConvertCocoPolysToMask(True)
+        self.cluster_copy_paste = cluster_copy_paste
+        if cluster_copy_paste:
+            with open('cluster_dict.json', 'rb') as fp:
+                self.cluster_dict = pickle.load(fp)
+            with open('id_dict.json', 'rb') as fp:
+                self.id_dict = pickle.load(fp)
 
-    def load_example(self, index):
-        img_id = self.ids[index]
-        ann_ids = self.coco.getAnnIds(imgIds=img_id)
+    def load_example(self, index, cluster_index=False):
+        if cluster_index:
+            self.img_id = index
+        else:
+            self.img_id = self.ids[index]
+        ann_ids = self.coco.getAnnIds(imgIds=self.img_id)
         target = self.coco.loadAnns(ann_ids)
 
-        path = self.coco.loadImgs(img_id)[0]['file_name']
+        path = self.coco.loadImgs(self.img_id)[0]['file_name']
         image = Image.open(os.path.join(self.root, path)).convert('RGB')
 
         image = np.array(image)
@@ -77,7 +88,7 @@ class CocoDetection(torchvision.datasets.CocoDetection):
         bboxes = []
 
         h, w = image.shape[0], image.shape[1]
-        target = {'image_id': img_id, 'annotations': target}
+        target = {'image_id': self.img_id, 'annotations': target}
         target = self.prepare(h, w, target)
         for ix in range(len(target['boxes'])):
         # for ix, obj in enumerate(target):
@@ -272,5 +283,6 @@ def build(image_set, args):
     # Use transformer for ViT
     dataset = CocoDetection(img_folder, ann_file,
                             mixed_augment=mixed_augmentation(image_set, args.img_size),
-                            copy_paste_augment=copy_paste_augmentation(image_set, args.img_size))
+                            copy_paste_augment=copy_paste_augmentation(image_set, args.img_size),
+                            cluster_copy_paste=args.cluster_copy_paste)
     return dataset
