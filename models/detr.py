@@ -28,7 +28,7 @@ from util.box_ops import bbox_trnsfrm
 # from models.pytorch_pretrained_vit.model import hierarchicalViT
 from models.pytorch_pretrained_vit.configs import PRETRAINED_MODELS
 from .pytorch_pretrained_vit.utils import non_strict_load_state_dict
-from mmdet.models.losses import CIoULoss
+#from mmdet.models.losses import CIoULoss
 from util import box_ops
 from util.misc import LabelSmoothingLoss
 
@@ -118,19 +118,19 @@ class DETR(nn.Module):
         if not isinstance(samples, torch.Tensor):
             samples = samples.tensors
 
-        if self.patch_vit: # TODO hardcoded for 224x224 patch and 560x560 image
-            patch_size = self.imsize
-            step = (int(patch_size[0]/2),int(patch_size[1]/2))
-            samples, n_patch = patchify(samples, patch_size, step)
-        
-        src, pos = self.backbone(samples)
+        # if self.patch_vit: # TODO hardcoded for 224x224 patch and 560x560 image
+        #     patch_size = self.imsize
+        #     step = (int(patch_size[0]/2),int(patch_size[1]/2))
+        #     samples, n_patch = patchify(samples, patch_size, step)
+
+        src_token, pos_token = self.backbone(samples)
 
         if self.distilled:
-            cls_dist_token, pos_token = pos[:, :2, :], pos[:, 2:, :]
-            src_token = src[:,:,2:,:] if len(src.shape) > 3 else src[:,2:,:]
+            cls_dist_token, pos_token = pos_token[:, :2, :], pos_token[:, 2:, :]
+            src_token = src_token[:,:,2:,:] if len(src_token.shape) > 3 else src_token[:,2:,:]
         elif not self.cls_token:
-            cls_token, pos_token = pos[:, :1, :], pos[:, 1:, :]
-            src_token = src[:,:,1:,:] if len(src.shape) > 3 else  src[:, 1:, :]
+            cls_token, pos_token = pos_token[:, :1, :], pos_token[:, 1:, :]
+            src_token = src_token[:,:,1:,:] if len(src_token.shape) > 3 else  src_token[:, 1:, :]
             # pos = self.backbone.transformer.hour_glass(pos[:, 1:, :]) #todo @tanveer later fix for hierchy, mayb not needed
             # pos = torch.cat([token, pos], 1).contiguous()
         # else:  #todo @tanver we dnt need to remove cls token inside vit, do it here and align else here
@@ -148,18 +148,18 @@ class DETR(nn.Module):
         #     src_token = self.hidden_dim_proj_src(src_token)
         #     pos_token = self.hidden_dim_proj_pos(pos_token)
 
-        if self.patch_vit: # TODO hardcoded for 224x224 patch and 560x560 image
-            patch_size = (int(patch_size[0]/16), int(patch_size[1]/16))
-            step = (int(patch_size[0]/2),int(patch_size[1]/2))
-            new_patchsize = (int(self.datasize[0]/16), int(self.datasize[1]/16))
-            src_token = src_token.view(-1,n_patch[0],n_patch[1],patch_size[0],patch_size[1],self.transformer.d_model).permute(0,5,1,2,3,4)
-            src_token = unpatchify(src_token, step)
-            src_token = src_token.view(-1,self.transformer.d_model,new_patchsize[0]*new_patchsize[1]).permute(0,2,1)
-
-            pos_token = pos_token.repeat(n_patch[0]*n_patch[1],1,1)
-            pos_token = pos_token.view(-1,n_patch[0],n_patch[1],patch_size[0],patch_size[1],self.transformer.d_model).permute(0,5,1,2,3,4)
-            pos_token = unpatchify(pos_token, step)
-            pos_token = pos_token.view(-1,self.transformer.d_model,new_patchsize[0]*new_patchsize[1]).permute(0,2,1)
+        # if self.patch_vit: # TODO hardcoded for 224x224 patch and 560x560 image
+        #     patch_size = (int(patch_size[0]/16), int(patch_size[1]/16))
+        #     step = (int(patch_size[0]/2),int(patch_size[1]/2))
+        #     new_patchsize = (int(self.datasize[0]/16), int(self.datasize[1]/16))
+        #     src_token = src_token.view(-1,n_patch[0],n_patch[1],patch_size[0],patch_size[1],self.transformer.d_model).permute(0,5,1,2,3,4)
+        #     src_token = unpatchify(src_token, step)
+        #     src_token = src_token.view(-1,self.transformer.d_model,new_patchsize[0]*new_patchsize[1]).permute(0,2,1)
+        #
+        #     pos_token = pos_token.repeat(n_patch[0]*n_patch[1],1,1)
+        #     pos_token = pos_token.view(-1,n_patch[0],n_patch[1],patch_size[0],patch_size[1],self.transformer.d_model).permute(0,5,1,2,3,4)
+        #     pos_token = unpatchify(pos_token, step)
+        #     pos_token = pos_token.view(-1,self.transformer.d_model,new_patchsize[0]*new_patchsize[1]).permute(0,2,1)
 
         hs = self.transformer(src_token, mask, self.query_embed.weight, pos_token)
 
@@ -239,8 +239,8 @@ class SetCriterion(nn.Module):
         empty_weight = torch.ones(self.num_classes + 1)
         empty_weight[-1] = self.eos_coef
         self.register_buffer('empty_weight', empty_weight)
-        if self.iou_loss_type == 'ciou':
-            self.ciou_loss = CIoULoss(reduction='none')
+        # if self.iou_loss_type == 'ciou':
+        #     self.ciou_loss = CIoULoss(reduction='none')
         if self.label_smoothing:
             self.label_smoothing_loss = LabelSmoothingLoss(classes=num_classes, smoothing=0.1)
 
@@ -586,6 +586,7 @@ def build(args):
                                 skip_feats = args.skip_feats,
                                 use_ms_enc = args.use_ms_enc,
                                 enc_pool_size = args.enc_pool_size,
+                                patch = args.patch_vit,
                             )
     # Make detr d_model compatible with deit
     # args.hidden_dim = backbone.embed_dim  # TODO: remove this line

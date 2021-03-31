@@ -96,8 +96,7 @@ class TransformerDecoder(nn.Module):
         intermediate = []
         for i, layer in enumerate(self.layers):
             if len(memory.shape)>3: #for features coming from lower label
-                # todo harcoded for skip feats, 2,5,8 and rest process final layer
-                layer_wise_enc = memory[i if i <3 else 3,:,:,:]
+                layer_wise_enc = memory[i if i <memory.shape[0] -1 else memory.shape[0]-1,:,:,:]
             else:
                 layer_wise_enc = memory
             output = layer(output, layer_wise_enc, tgt_mask=tgt_mask,
