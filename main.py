@@ -121,6 +121,7 @@ def get_args_parser():
     parser.add_argument("--enc_pool_size", nargs="*",
                         default=[12, 12, 12, 12, 24, 24, 24, 24, '_', '_', '_', '_'],
                         help="list of index where skip conn will be made")
+    parser.add_argument("--enc_kernel", nargs="*",default=[10,20], help="local attention kernel size")
 
     # * Segmentation
     parser.add_argument('--masks', action='store_true',

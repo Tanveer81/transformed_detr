@@ -587,6 +587,7 @@ def build(args):
                                 use_ms_enc = args.use_ms_enc,
                                 enc_pool_size = args.enc_pool_size,
                                 patch = args.patch_vit,
+                                enc_kernel = args.enc_kernel
                             )
     # Make detr d_model compatible with deit
     # args.hidden_dim = backbone.embed_dim  # TODO: remove this line
