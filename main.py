@@ -83,7 +83,7 @@ def get_args_parser():
     parser.add_argument('--clip_max_norm', default=0.1, type=float,
                         help='gradient clipping max norm')
     parser.add_argument('--lr_scheduler', default='reduce_lr', type=str,
-                        choices=('reduce_lr', 'cosine'))
+                        choices=('reduce_lr', 'cosine', 'cosine_warm_restart'))
 
     # Model parameters
     parser.add_argument('--frozen_weights', type=str, default=None,
@@ -121,7 +121,7 @@ def get_args_parser():
     parser.add_argument("--enc_pool_size", nargs="*",
                         default=[12, 12, 12, 12, 24, 24, 24, 24, '_', '_', '_', '_'],
                         help="list of index where skip conn will be made")
-    parser.add_argument("--enc_kernel", nargs="*",default=[10,20], help="local attention kernel size")
+    parser.add_argument("--enc_kernel", type=int, nargs="*",default=[10,20], help="local attention kernel size")
 
     # * Segmentation
     parser.add_argument('--masks', action='store_true',
@@ -232,6 +232,8 @@ def main(args):
         lf = lambda x: (((1 + math.cos(
             x * math.pi / args.epochs)) / 2) ** 1.0) * 0.8 + 0.2  # cosine
         lr_scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer, lr_lambda=lf)
+    elif args.lr_scheduler == 'cosine_warm_restart':
+        lr_scheduler = torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(optimizer, T_0=10, T_mult=2, eta_min=0.01, last_epoch=-1)
     else:
         lr_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'max', patience=2, factor=0.9,
                                        verbose=True, threshold=0.001, threshold_mode='abs', cooldown=1)

@@ -295,9 +295,9 @@ class SetCriterion(nn.Module):
 
         def balanced_l1_loss(pred,
                              target,
-                             beta=1.0,
+                             beta=0.7,
                              alpha=0.5,
-                             gamma=1.5,
+                             gamma=1.75,
                              reduction='mean'):
             """Calculate balanced L1 loss.
 
