@@ -233,7 +233,7 @@ def main(args):
             x * math.pi / args.epochs)) / 2) ** 1.0) * 0.8 + 0.2  # cosine
         lr_scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer, lr_lambda=lf)
     elif args.lr_scheduler == 'cosine_warm_restart':
-        lr_scheduler = torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(optimizer, T_0=10, T_mult=2, eta_min=0.01, last_epoch=-1)
+        lr_scheduler = torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(optimizer, T_0=10, T_mult=2, eta_min=5e-6, last_epoch=-1)
     else:
         lr_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'max', patience=2, factor=0.9,
                                        verbose=True, threshold=0.001, threshold_mode='abs', cooldown=1)
