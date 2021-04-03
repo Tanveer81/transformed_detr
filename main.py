@@ -6,6 +6,9 @@ import random
 import time
 from pathlib import Path
 import os
+
+from util.cosine_annearing_with_warmup import CosineAnnealingWarmupRestarts
+
 os.environ['JOBLIB_TEMP_FOLDER'] = '/home/wiss/koner/'
 import numpy as np
 import torch
@@ -83,7 +86,7 @@ def get_args_parser():
     parser.add_argument('--clip_max_norm', default=0.1, type=float,
                         help='gradient clipping max norm')
     parser.add_argument('--lr_scheduler', default='reduce_lr', type=str,
-                        choices=('reduce_lr', 'cosine', 'cosine_warm_restart'))
+                        choices=('reduce_lr', 'cosine', 'cosine_warm_restart', 'gradual_cosine_warm_restart'))
 
     # Model parameters
     parser.add_argument('--frozen_weights', type=str, default=None,
@@ -212,8 +215,7 @@ def main(args):
 
     param_dicts = [
         {"params": [p for n, p in model_without_ddp.named_parameters() if
-                    "backbone" not in n and p.requires_grad]},
-        {
+                    "backbone" not in n and p.requires_grad],
             "params": [p for n, p in model_without_ddp.named_parameters() if
                        "backbone" in n and p.requires_grad],
             "lr": args.lr_backbone,
@@ -234,6 +236,14 @@ def main(args):
         lr_scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer, lr_lambda=lf)
     elif args.lr_scheduler == 'cosine_warm_restart':
         lr_scheduler = torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(optimizer, T_0=10, T_mult=2, eta_min=5e-6, last_epoch=-1)
+    elif args.lr_scheduler == 'gradual_cosine_warm_restart':
+        lr_scheduler = CosineAnnealingWarmupRestarts(optimizer,
+                                                  first_cycle_steps=10,
+                                                  cycle_mult=1.1,
+                                                  max_lr=args.lr,
+                                                  min_lr=5e-6,
+                                                  warmup_steps=2,
+                                                  gamma=0.9)
     else:
         lr_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'max', patience=2, factor=0.9,
                                        verbose=True, threshold=0.001, threshold_mode='abs', cooldown=1)
