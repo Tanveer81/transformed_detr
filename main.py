@@ -133,7 +133,7 @@ def get_args_parser():
     # Loss
     parser.add_argument('--no_aux_loss', dest='aux_loss', action='store_false',
                         help="Disables auxiliary decoding losses (loss at each layer)")
-    parser.add_argument('--bbox_loss_type', default='l1', type=str, choices=('l1', 'smooth_l1','balanced_l1','mse_sigmoid', 'none'))
+    parser.add_argument('--bbox_loss_type', default='l1', type=str, choices=('l1', 'smooth_l1','balanced_l1','mse_sigmoid', 'none', 'mse_sigmoid_l1'))
     parser.add_argument('--iou_loss_type', default='giou', type=str, choices=('giou', 'ciou'))
     parser.add_argument('--loss_transform', default='sqrt', type=str, choices=('sqrt', 'log','None'))
     parser.add_argument('--use_fl', action='store_true', help='focal loss for object cls')
@@ -215,7 +215,8 @@ def main(args):
 
     param_dicts = [
         {"params": [p for n, p in model_without_ddp.named_parameters() if
-                    "backbone" not in n and p.requires_grad],
+                    "backbone" not in n and p.requires_grad]},
+        {
             "params": [p for n, p in model_without_ddp.named_parameters() if
                        "backbone" in n and p.requires_grad],
             "lr": args.lr_backbone,
@@ -360,8 +361,8 @@ def main(args):
             model, criterion, postprocessors, data_loader_val, base_ds, device, args.output_dir,
             args.overfit_one_batch, args.print_freq, args.print_details
         )
-        # ap_box = coco_evaluator.coco_eval['bbox'].stats.tolist()[0]  # take AP Box for reducing lr
-        ap_box = coco_evaluator.coco_eval['bbox'].stats.tolist()[3]  # take AP small Box for reducing lr
+        ap_box = coco_evaluator.coco_eval['bbox'].stats.tolist()[0]  # take AP Box for reducing lr
+        # ap_box = coco_evaluator.coco_eval['bbox'].stats.tolist()[3]  # take AP small Box for reducing lr
         lr_scheduler.step(ap_box)
         log_stats = {**{f'train_{k}': v for k, v in train_stats.items()},
                      **{f'test_{k}': v for k, v in test_stats.items()},

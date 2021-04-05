@@ -295,7 +295,7 @@ class SetCriterion(nn.Module):
 
         def balanced_l1_loss(pred,
                              target,
-                             beta=0.7,
+                             beta=0.5,
                              alpha=0.5,
                              gamma=1.75,
                              reduction='mean'):
@@ -357,6 +357,14 @@ class SetCriterion(nn.Module):
                 loss_xy = F.binary_cross_entropy(transformed_src_boxes[:, :2],
                                                  transformed_target_boxes[:, :2], reduce=False)
                 loss_bbox = torch.cat((loss_xy, loss_wh), dim=1)
+            elif self.bbox_loss_type == 'mse_sigmoid_l1':  # todo in yolov4 they reduced by sum
+                loss_wh = F.mse_loss(transformed_src_boxes[:, 2:],
+                                     transformed_target_boxes[:, 2:], reduce=False) * 0.6
+                loss_xy = F.binary_cross_entropy(transformed_src_boxes[:, :2],
+                                                 transformed_target_boxes[:, :2], reduce=False) * 0.6
+                l1_bbox = F.l1_loss(src_boxes, target_boxes, reduction='none') * 0.4
+                loss_bbox = torch.cat((loss_xy, loss_wh, l1_bbox), dim=1)
+
         if self.bbox_loss_type == 'none':
             losses['loss_bbox'] = 0
         else:
