@@ -96,9 +96,9 @@ class TransformerDecoder(nn.Module):
         intermediate = []
         for i, layer in enumerate(self.layers):
             if len(memory.shape)>3: #for features coming from lower label
-                #layer_wise_enc = memory[i if i <memory.shape[0] -1 else memory.shape[0]-1,:,:,:]
+                layer_wise_enc = memory[i if i <memory.shape[0] -1 else memory.shape[0]-1,:,:,:]
                 # for reverse order
-                layer_wise_enc = memory[memory.shape[0] - 1 if i < len(self.layers) - memory.shape[0] else len(self.layers) - (i + 1),:,:,:]
+                #layer_wise_enc = memory[memory.shape[0] - 1 if i < len(self.layers) - memory.shape[0] else len(self.layers) - (i + 1),:,:,:]
 
             else:
                 layer_wise_enc = memory

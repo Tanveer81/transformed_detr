@@ -8,6 +8,7 @@ from pathlib import Path
 import os
 
 from util.cosine_annearing_with_warmup import CosineAnnealingWarmupRestarts
+from util.lr_schedular import WarmupReduceLROnPlateau
 
 os.environ['JOBLIB_TEMP_FOLDER'] = '/home/wiss/koner/'
 import numpy as np
@@ -86,7 +87,7 @@ def get_args_parser():
     parser.add_argument('--clip_max_norm', default=0.1, type=float,
                         help='gradient clipping max norm')
     parser.add_argument('--lr_scheduler', default='reduce_lr', type=str,
-                        choices=('reduce_lr', 'cosine', 'cosine_warm_restart', 'gradual_cosine_warm_restart'))
+                        choices=('reduce_lr', 'cosine', 'cosine_warm_restart', 'gradual_cosine_warm_restart', 'WarmupReduceLROnPlateau'))
 
     # Model parameters
     parser.add_argument('--frozen_weights', type=str, default=None,
@@ -245,6 +246,18 @@ def main(args):
                                                   min_lr=5e-6,
                                                   warmup_steps=2,
                                                   gamma=0.9)
+
+    elif args.lr_scheduler == 'WarmupReduceLROnPlateau':
+        lr_scheduler = WarmupReduceLROnPlateau(optimizer,
+                                            gamma=0.9,
+                                            warmup_factor=1.0 / 3,
+                                            warmup_iters=2,
+                                            warmup_method="linear",
+                                            last_epoch=-1,
+                                            patience=2,
+                                            threshold=0.001,
+                                            cooldown=1,
+                                            logger=None,)
     else:
         lr_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'max', patience=2, factor=0.9,
                                        verbose=True, threshold=0.001, threshold_mode='abs', cooldown=1)
