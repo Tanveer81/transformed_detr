@@ -157,6 +157,9 @@ class WarmupReduceLROnPlateau(object):
                 self.under_cooldown -= 1
                 self.num_bad_epochs = 0
 
+            if epoch == 50:
+                self.patience = self.patience * 2
+
             if self.num_bad_epochs >= self.patience:
                 if self.logger is not None:
                     self.logger.info(
