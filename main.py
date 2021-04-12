@@ -328,7 +328,8 @@ def main(args):
             print('Resumming Optimizer from:', args.resume)
             optimizer.load_state_dict(checkpoint['optimizer'])
             if args.lr_scheduler == 'constant':
-                optimizer.defaults['lr'] = args.lr
+                optimizer.param_groups[0]['lr'] = args.lr
+                optimizer.param_groups[1]['lr'] = args.lr
             lr_scheduler.load_state_dict(checkpoint['lr_scheduler'])
             args.start_epoch = checkpoint['epoch'] + 1
 
