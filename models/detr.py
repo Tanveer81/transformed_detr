@@ -359,10 +359,10 @@ class SetCriterion(nn.Module):
                 loss_bbox = torch.cat((loss_xy, loss_wh), dim=1)
             elif self.bbox_loss_type == 'mse_sigmoid_l1':  # todo in yolov4 they reduced by sum
                 loss_wh = F.mse_loss(transformed_src_boxes[:, 2:],
-                                     transformed_target_boxes[:, 2:], reduce=False) * 0.4
+                                     transformed_target_boxes[:, 2:], reduce=False) * 0.6
                 loss_xy = F.binary_cross_entropy(transformed_src_boxes[:, :2],
-                                                 transformed_target_boxes[:, :2], reduce=False) * 0.4
-                l1_bbox = F.l1_loss(src_boxes, target_boxes, reduction='none') * 0.6
+                                                 transformed_target_boxes[:, :2], reduce=False) * 0.6
+                l1_bbox = F.l1_loss(src_boxes, target_boxes, reduction='none') * 0.4
                 loss_bbox = torch.cat((loss_xy, loss_wh, l1_bbox), dim=1)
 
         if self.bbox_loss_type == 'none':

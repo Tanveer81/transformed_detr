@@ -87,7 +87,7 @@ def get_args_parser():
     parser.add_argument('--clip_max_norm', default=0.1, type=float,
                         help='gradient clipping max norm')
     parser.add_argument('--lr_scheduler', default='reduce_lr', type=str,
-                        choices=('reduce_lr', 'cosine', 'cosine_warm_restart', 'gradual_cosine_warm_restart', 'WarmupReduceLROnPlateau'))
+                        choices=('reduce_lr', 'cosine', 'cosine_warm_restart', 'gradual_cosine_warm_restart', 'WarmupReduceLROnPlateau', 'constant'))
 
     # Model parameters
     parser.add_argument('--frozen_weights', type=str, default=None,
@@ -118,7 +118,7 @@ def get_args_parser():
     parser.add_argument('--use_proj_in_dec', action='store_true', help='apply reduce projection in decoder layer specific ')
     parser.add_argument('--use_ms_dec',  default='AdaptiveAvgPool2d', type=str,choices=('AdaptiveAvgPool2d', 'AdaptiveMaxPool2d','None'),
                         help='apply hierrachichial pooling in decoder layer specific ')
-    parser.add_argument("--pool_size", nargs="*", default=['_', '_', '_', 24, 24, 24],
+    parser.add_argument("--pool_size", nargs="*", default=['_', '_', '_', '_', 20, 20],
                         help="list of index where skip conn will be made")  # type=int,
     parser.add_argument('--use_ms_enc',  default='None', type=str,choices=('AdaptiveAvgPool2d', 'AdaptiveMaxPool2d','None'),
                         help='apply hierrachichial pooling in encoder layer specific ')
@@ -251,13 +251,16 @@ def main(args):
         lr_scheduler = WarmupReduceLROnPlateau(optimizer,
                                             gamma=0.9,
                                             warmup_factor=1.0 / 3,
-                                            warmup_iters=2,
+                                            warmup_iters=3,
                                             warmup_method="linear",
                                             last_epoch=-1,
                                             patience=2,
                                             threshold=0.001,
                                             cooldown=1,
                                             logger=None,)
+    elif args.lr_scheduler == 'constant':
+        lf = lambda x: 1e-5
+        lr_scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer, lr_lambda=lf)
     else:
         lr_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'max', patience=2, factor=0.9,
                                        verbose=True, threshold=0.001, threshold_mode='abs', cooldown=1)
@@ -324,7 +327,8 @@ def main(args):
         if not args.eval and 'optimizer' in checkpoint and 'lr_scheduler' in checkpoint and 'epoch' in checkpoint and not args.only_weight:
             print('Resumming Optimizer from:', args.resume)
             optimizer.load_state_dict(checkpoint['optimizer'])
-            lr_scheduler.load_state_dict(checkpoint['lr_scheduler'])
+            if args.lr_scheduler != 'constant':
+                lr_scheduler.load_state_dict(checkpoint['lr_scheduler'])
             args.start_epoch = checkpoint['epoch'] + 1
 
     if args.eval:
