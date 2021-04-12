@@ -259,7 +259,7 @@ def main(args):
                                             cooldown=1,
                                             logger=None,)
     elif args.lr_scheduler == 'constant':
-        lf = lambda x: 1e-5
+        lf = lambda x: x*0+args.lr
         lr_scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer, lr_lambda=lf)
     else:
         lr_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'max', patience=2, factor=0.9,
@@ -327,8 +327,9 @@ def main(args):
         if not args.eval and 'optimizer' in checkpoint and 'lr_scheduler' in checkpoint and 'epoch' in checkpoint and not args.only_weight:
             print('Resumming Optimizer from:', args.resume)
             optimizer.load_state_dict(checkpoint['optimizer'])
-            if args.lr_scheduler != 'constant':
-                lr_scheduler.load_state_dict(checkpoint['lr_scheduler'])
+            if args.lr_scheduler == 'constant':
+                optimizer.defaults['lr'] = args.lr
+            lr_scheduler.load_state_dict(checkpoint['lr_scheduler'])
             args.start_epoch = checkpoint['epoch'] + 1
 
     if args.eval:
@@ -380,7 +381,8 @@ def main(args):
         )
         ap_box = coco_evaluator.coco_eval['bbox'].stats.tolist()[0]  # take AP Box for reducing lr
         # ap_box = coco_evaluator.coco_eval['bbox'].stats.tolist()[3]  # take AP small Box for reducing lr
-        lr_scheduler.step(ap_box)
+        if args.lr_scheduler != 'constant':
+            lr_scheduler.step(ap_box)
         log_stats = {**{f'train_{k}': v for k, v in train_stats.items()},
                      **{f'test_{k}': v for k, v in test_stats.items()},
                      'epoch': epoch,
