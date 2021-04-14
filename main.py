@@ -118,12 +118,12 @@ def get_args_parser():
     parser.add_argument('--use_proj_in_dec', action='store_true', help='apply reduce projection in decoder layer specific ')
     parser.add_argument('--use_ms_dec',  default='AdaptiveAvgPool2d', type=str,choices=('AdaptiveAvgPool2d', 'AdaptiveMaxPool2d','None'),
                         help='apply hierrachichial pooling in decoder layer specific ')
-    parser.add_argument("--pool_size", nargs="*", default=['_', '_', '_', '_', 20, 20],
+    parser.add_argument("--pool_size", nargs="*", default=['_', '_', '_', 20, 20, 20],
                         help="list of index where skip conn will be made")  # type=int,
     parser.add_argument('--use_ms_enc',  default='None', type=str,choices=('AdaptiveAvgPool2d', 'AdaptiveMaxPool2d','None'),
                         help='apply hierrachichial pooling in encoder layer specific ')
     parser.add_argument("--enc_pool_size", nargs="*",
-                        default=[12, 12, 12, 12, 24, 24, 24, 24, '_', '_', '_', '_'],
+                        default=['_', '_', '_', '_', '_', '_', '_', '_', '_', 30, 30, 30],
                         help="list of index where skip conn will be made")
     parser.add_argument("--enc_kernel", type=int, nargs="*",default=[10,20], help="local attention kernel size")
 
