@@ -128,6 +128,8 @@ def get_args_parser():
     parser.add_argument("--enc_kernel", type=int, nargs="*",default=[10,20], help="local attention kernel size")
     parser.add_argument("--enc_stride", type=int, nargs="*", default=[10, 20],
                         help="local attention stride size")
+    parser.add_argument('--relative_pos', default=False, action='store_true')
+
     # * Segmentation
     parser.add_argument('--masks', action='store_true',
                         help="Train segmentation head if the flag is provided")

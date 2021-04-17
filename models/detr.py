@@ -596,7 +596,8 @@ def build(args):
                                 enc_pool_size = args.enc_pool_size,
                                 patch = args.patch_vit,
                                 enc_kernel = args.enc_kernel,
-                                enc_stride = args.enc_stride
+                                enc_stride = args.enc_stride,
+                                relative_pos = args.relative_pos
                             )
     # Make detr d_model compatible with deit
     # args.hidden_dim = backbone.embed_dim  # TODO: remove this line
