@@ -128,8 +128,9 @@ def get_args_parser():
     parser.add_argument("--enc_kernel", type=int, nargs="*",default=[10,20], help="local attention kernel size")
     parser.add_argument("--enc_stride", type=int, nargs="*", default=[10, 20],
                         help="local attention stride size")
-    parser.add_argument('--relative_pos', default= 'none', type=str,
-                        choices=['none', 'bneck', 'standalone'])
+    parser.add_argument('--relative_pos', default= 'none', type=str,choices=['none', 'bneck', 'standalone'])
+    parser.add_argument('--dec_rel_pos', default= 'none', type=str,choices=['none', 'bneck', 'standalone'])
+    parser.add_argument('--share_relative_pos', default=False, action='store_true', help='share relative position between attn layer')
 
     # * Segmentation
     parser.add_argument('--masks', action='store_true',
