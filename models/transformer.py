@@ -17,29 +17,33 @@ import torch.nn.functional as F
 from torch import nn, Tensor
 from .pytorch_pretrained_vit.utils import non_strict_load_state_dict
 from timm.models.layers import DropPath
+from .timm.timm.models.vision_transformer import RelPosEmb
 
 class Transformer(nn.Module):
 
     def __init__(self, d_model=512, nhead=8, num_decoder_layers=6, dim_feedforward=2048, dropout=0.1,
                  activation="relu", normalize_before=False, return_intermediate_dec=False,
                   backbone_name = 'resnet', cross_first=False, drop_path=0, use_proj_in_dec=False,
-                 bkbone_dim=768, hierarchical_pool=False, pool_size=[None, None, 24,24,14,14]):
+                 bkbone_dim=768, hierarchical_pool=False, pool_size=[None, None, 24,24,14,14],
+                 relative_pos='none', seq_len=196):
         super().__init__()
 
         # In case of ViT backbone, self.backbone changes to "ViT" from detr
         self.backbone = backbone_name
 
         decoder_norm = nn.LayerNorm(d_model)
+
         self.decoder = TransformerDecoder(num_decoder_layers, decoder_norm, return_intermediate_dec,
                                           drop_path, d_model,nhead, dim_feedforward,
                                           dropout, activation, normalize_before, cross_first,
                                           use_proj_in_dec, bkbone_dim, hierarchical_pool,
-                                          pool_size=pool_size)
+                                          pool_size=pool_size, relative_pos=relative_pos, seq_len=seq_len)
 
         self._reset_parameters()
         self.dim_feedforward = dim_feedforward
         self.d_model = d_model
         self.nhead = nhead
+
 
     def _reset_parameters(self):
         for p in self.parameters():
@@ -65,7 +69,7 @@ class TransformerDecoder(nn.Module):
 
     def __init__(self, num_layers, norm=None, return_intermediate=False, drop_path=0, d_model=512,
                  nhead=8, dim_feedforward=2048, dropout=0.1, activation="relu", normalize_before=False, cross_first=False, use_proj_in_dec=False,
-                 bkbone_dim=768, hierarchical_pool=None, reduce_backbone=None, pool_size=[None, None, 24,24,14,14]):
+                 bkbone_dim=768, hierarchical_pool=None, reduce_backbone=None, pool_size=[None, None, 24,24,14,14], relative_pos='none', seq_len=196):
         super().__init__()
         if d_model!=bkbone_dim: # reduce the prjection decoder layer wise
             reduce_backbone = nn.Linear(bkbone_dim, d_model)
@@ -77,7 +81,7 @@ class TransformerDecoder(nn.Module):
         # create decoder layer woth drop path
         self.layers = nn.ModuleList([TransformerDecoderLayer(d_model, nhead, dim_feedforward, dropout, activation, normalize_before,
                                                              cross_first, use_proj_in_dec, reduce_backbone, i, hierarchical_pool,
-                                                             pool_size, drop_path=dpr[i])
+                                                             pool_size, drop_path=dpr[i], relative_pos=relative_pos, seq_len=seq_len)
                                     for i in range(num_layers)])
 
         self.num_layers = num_layers
@@ -126,10 +130,11 @@ class TransformerDecoderLayer(nn.Module):
 
     def __init__(self, d_model, nhead, dim_feedforward=2048, dropout=0.1,
                  activation="relu", normalize_before=False, cross_first=False, use_proj_in_dec=False, reduce_backbone=None,
-                 layer_num=None, hierarchical_pool=None, pool_size=None, drop_path=0.):
+                 layer_num=None, hierarchical_pool=None, pool_size=None, drop_path=0., relative_pos='none', seq_len=196):
         super().__init__()
         #assert not (dropout>0. and drop_path>0.), 'dropout and drop_path cannot both be greater than 0.'
         self.cross_first=cross_first
+        self.nhead = nhead
         self.self_attn = nn.MultiheadAttention(d_model, nhead, dropout=dropout)
         self.multihead_attn = nn.MultiheadAttention(d_model, nhead, dropout=dropout)
         # Implementation of Feedforward model
@@ -157,8 +162,18 @@ class TransformerDecoderLayer(nn.Module):
         self.drop_path = DropPath(drop_path) if drop_path > 0. else nn.Identity()
         self.layer_number = layer_num
 
+        self.w = self.h = int(seq_len ** 0.5)
         if hierarchical_pool !='None' and pool_size[layer_num]!="_":
             self.pool =  eval("nn.{}(({},{}))".format(hierarchical_pool,int(pool_size[layer_num]),int(pool_size[layer_num])))
+            self.w = self.h = pool_size[layer_num]
+
+        self.relative_pos = relative_pos
+        if self.relative_pos == 'bneck':
+            self.rel_pos_enc = RelPosEmb(int(seq_len ** 0.5), self.d_model)
+        elif self.relative_pos == 'standalone':
+            self.d = int(self.d_model/self.nhead)
+            self.rel_height = nn.Parameter(torch.randn(self.h, 1, 1, 1, self.d // 2))  # self.h, self.w, B, self.nhead, d
+            self.rel_width = nn.Parameter(torch.randn(1, self.w, 1, 1, self.d // 2))
 
     def with_pos_embed(self, tensor, pos: Optional[Tensor]):
         if self.use_proj_in_dec and not self.d_model==tensor.shape[-1]:
@@ -188,14 +203,19 @@ class TransformerDecoderLayer(nn.Module):
         # Perform cross attention between encoder values and decoder queries
         # Then perform self attention between decoder object queries
         if self.cross_first: # 1st aplly decoder to all image attn
+            key=self.with_pos_embed(memory, pos)
+            if self.relative_pos == 'standalone':
+                key = self.standalone_rel_pos(key)
+
             tgt2 = self.multihead_attn(query=self.with_pos_embed(tgt, query_pos),
-                                       key=self.with_pos_embed(memory, pos),
+                                       key=key,
                                        value=self.with_pos_embed(memory, None), attn_mask=memory_mask,
                                        key_padding_mask=memory_key_padding_mask)[0]
             tgt = tgt + self.dropout2(tgt2)
             tgt = self.norm2(tgt)
 
             q = k = self.with_pos_embed(tgt, query_pos) #tgt if self.cross_first else  todo experiment wdout pos emebeding as for cross attn its already done earlier
+
             tgt2 = self.self_attn(q, k, value=tgt, attn_mask=tgt_mask, key_padding_mask=tgt_key_padding_mask)[0]
             tgt = tgt + self.drop_path(self.dropout1(tgt2))
             tgt = self.norm1(tgt)
@@ -206,8 +226,13 @@ class TransformerDecoderLayer(nn.Module):
             tgt2 = self.self_attn(q, k, value=tgt, attn_mask=tgt_mask, key_padding_mask=tgt_key_padding_mask)[0]
             tgt = tgt + self.dropout1(tgt2)
             tgt = self.norm1(tgt)
+
+            key=self.wd_pool(self.with_pos_embed(memory, pos))
+            if self.relative_pos == 'standalone':
+                key = self.standalone_rel_pos(key)
+
             tgt2 = self.multihead_attn(query=self.with_pos_embed(tgt, query_pos),
-                                       key=self.wd_pool(self.with_pos_embed(memory, pos)),
+                                       key=key,
                                        value=self.wd_pool(self.with_pos_embed(memory, None)), attn_mask=memory_mask,
                                        key_padding_mask=memory_key_padding_mask)[0]
             tgt = tgt + self.drop_path(self.dropout2(tgt2))
@@ -230,8 +255,13 @@ class TransformerDecoderLayer(nn.Module):
                               key_padding_mask=tgt_key_padding_mask)[0]
         tgt = tgt + self.dropout1(tgt2)
         tgt2 = self.norm2(tgt)
+
+        key = self.with_pos_embed(memory, pos)
+        if self.relative_pos == 'standalone':
+            key = self.standalone_rel_pos(key)
+
         tgt2 = self.multihead_attn(query=self.with_pos_embed(tgt2, query_pos),
-                                   key=self.with_pos_embed(memory, pos),
+                                   key=k,
                                    value=self.with_pos_embed(memory, None), attn_mask=memory_mask,
                                    key_padding_mask=memory_key_padding_mask)[0]
         tgt = tgt + self.dropout2(tgt2)
@@ -239,6 +269,14 @@ class TransformerDecoderLayer(nn.Module):
         tgt2 = self.linear2(self.dropout(self.activation(self.linear1(tgt2))))
         tgt = tgt + self.dropout3(tgt2)
         return tgt
+
+    def standalone_rel_pos(self, k):
+        B = k.shape[1]
+        k = k.reshape(self.h, self.w, B, self.nhead, self.d)
+        k_out_h, k_out_w = k.split(self.d // 2, dim=4)
+        k = torch.cat((k_out_h + self.rel_height, k_out_w + self.rel_width), dim=4)
+        k = k.reshape(-1, B, self.d_model)
+        return k
 
     def forward(self, tgt, memory,
                 tgt_mask: Optional[Tensor] = None,
@@ -258,7 +296,7 @@ def _get_clones(module, N):
     return nn.ModuleList([copy.deepcopy(module) for i in range(N)])
 
 
-def build_transformer(args, bkbone_dim=768):
+def build_transformer(args, bkbone_dim=768, seq_len=196):
     transformer = Transformer(
         d_model=args.hidden_dim,
         dropout=args.dropout,
@@ -274,7 +312,9 @@ def build_transformer(args, bkbone_dim=768):
         use_proj_in_dec=args.use_proj_in_dec,
         bkbone_dim=bkbone_dim,
         hierarchical_pool = args.use_ms_dec,
-        pool_size=args.pool_size
+        pool_size=args.pool_size,
+        relative_pos=args.dec_rel_pos,
+        seq_len=seq_len
     )
 
     return transformer

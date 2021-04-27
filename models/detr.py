@@ -597,7 +597,8 @@ def build(args):
                                 patch = args.patch_vit,
                                 enc_kernel = args.enc_kernel,
                                 enc_stride = args.enc_stride,
-                                relative_pos = args.relative_pos
+                                relative_pos = args.relative_pos,
+                                share_relative_pos = args.share_relative_pos
                             )
     # Make detr d_model compatible with deit
     # args.hidden_dim = backbone.embed_dim  # TODO: remove this line
@@ -620,7 +621,9 @@ def build(args):
     if os.path.exists(args.detr_pretrain_dir) > 0:
         args.hidden_dim = 256 # as pretrained detr dim was 256
 
-    transformer = build_transformer(args, bkbone_dim = backbone.embed_dim)
+    transformer = build_transformer(args,
+                                    bkbone_dim = backbone.embed_dim,
+                                    seq_len=int((args.img_height / 16) ** 2))
 
     #TODO: Load weights here
     if os.path.exists(args.detr_pretrain_dir)>0:
