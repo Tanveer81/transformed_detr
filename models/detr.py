@@ -609,7 +609,7 @@ def build(args):
             backbone,
             weights_path=args.pretrain_dir,
             load_first_conv=True,
-            resize_positional_embedding=args.img_size != tuple(pretrained_image_size),
+            resize_positional_embedding=args.img_size != tuple(pretrained_image_size) and args.relative_pos=='none',
             old_img=(pretrained_image_size[0] // patch_size[0], pretrained_image_size[1] // patch_size[1]),  # original vit/deit 384x384
             new_img=(args.img_size[0] // patch_size[0], args.img_size[1] // patch_size[1]),  # todo experiment with height and weight
             deit='Deit' in args.backbone,
